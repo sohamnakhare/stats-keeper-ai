@@ -1,0 +1,59 @@
+# Virtual env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Model weights (download via worker/scripts/download_model.py)
+*.pt
+*.pth
+*.onnx
+*.engine
+*.mlmodel
+
+# Hugging Face / Ultralytics caches
+.cache/
+**/models/.cache/
+
+# Training datasets & run artifacts
+**/models/Finetune*/
+**/models/ball_dataset*/
+**/models/runs/
+runs/
+
+# Keep models/ and output/ directories in git
+!worker/models/.gitkeep
+!worker/output/.gitkeep
+
+# Media / clips (local test footage)
+*.mp4
+*.webm
+*.mkv
+*.avi
+*.mov
+*.m4v
+*.gif
+
+# Pipeline outputs (JSON, frames, tracks) — keep directory via .gitkeep
+worker/output/**
+!worker/output/.gitkeep
