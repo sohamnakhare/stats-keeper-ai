@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scoreboard marker — ROI regions</title>
+    <style>
+      :root {
+        --bg: #0f1419;
+        --panel: #1a2332;
+        --text: #e7ecf3;
+        --muted: #8b9cb3;
+        --game-clock: #f97316;
+        --home-score: #38bdf8;
+        --away-score: #a855f7;
+        --shot-clock: #22c55e;
+        --quarter: #eab308;
+        --accent: #22c55e;
+        --border: #2d3a4f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+      }
+
+      header h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.125rem;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.875rem;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 1rem;
+        padding: 1rem;
+        align-items: start;
+      }
+
+      @media (max-width: 1024px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .stage-wrap {
+        background: #000;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+        max-width: 100%;
+      }
+
+      .stage {
+        position: relative;
+        width: 100%;
+        line-height: 0;
+      }
+
+      video {
+        width: 100%;
+        height: auto;
+        display: block;
+        vertical-align: top;
+      }
+
+      canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        cursor: crosshair;
+        touch-action: none;
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.875rem;
+      }
+
+      .card h2 {
+        margin: 0 0 0.625rem;
+        font-size: 0.8125rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+
+      label {
+        display: block;
+        font-size: 0.8125rem;
+        color: var(--muted);
+        margin-bottom: 0.25rem;
+      }
+
+      input[type="file"],
+      input[type="range"],
+      button,
+      select {
+        width: 100%;
+        font: inherit;
+      }
+
+      input[type="file"] {
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+
+      button {
+        border: 1px solid var(--border);
+        background: #243044;
+        color: var(--text);
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.8125rem;
+      }
+
+      button:hover {
+        background: #2c3a52;
+      }
+
+      button.active-game-clock {
+        border-color: var(--game-clock);
+        background: color-mix(in srgb, var(--game-clock) 20%, #243044);
+      }
+
+      button.active-home-score {
+        border-color: var(--home-score);
+        background: color-mix(in srgb, var(--home-score) 20%, #243044);
+      }
+
+      button.active-away-score {
+        border-color: var(--away-score);
+        background: color-mix(in srgb, var(--away-score) 20%, #243044);
+      }
+
+      button.active-shot-clock {
+        border-color: var(--shot-clock);
+        background: color-mix(in srgb, var(--shot-clock) 20%, #243044);
+      }
+
+      button.active-quarter {
+        border-color: var(--quarter);
+        background: color-mix(in srgb, var(--quarter) 20%, #243044);
+      }
+
+      button.primary {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 25%, #243044);
+      }
+
+      .btn-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+      }
+
+      .btn-grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0.5rem;
+      }
+
+      .hint {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        line-height: 1.45;
+        margin: 0;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        font-size: 0.75rem;
+      }
+
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+      }
+
+      .dot.game-clock {
+        background: var(--game-clock);
+      }
+
+      .dot.home-score {
+        background: var(--home-score);
+      }
+
+      .dot.away-score {
+        background: var(--away-score);
+      }
+
+      .dot.shot-clock {
+        background: var(--shot-clock);
+      }
+
+      .dot.quarter {
+        background: var(--quarter);
+      }
+
+      pre {
+        margin: 0;
+        padding: 0.625rem;
+        background: #0b1018;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 0.625rem;
+        line-height: 1.4;
+        overflow: auto;
+        max-height: 180px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .time-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .time-row output {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        min-width: 4.5rem;
+        text-align: right;
+      }
+
+      .region-status {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-top: 0.5rem;
+      }
+
+      .region-status .set {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Mark scoreboard regions</h1>
+      <p>
+        Load a video, mark bounding boxes for game clock, scores, and optional regions.
+        Export <code>scoreboard_roi.json</code> for OCR processing.
+      </p>
+    </header>
+
+    <main>
+      <section class="stage-wrap">
+        <div class="stage" id="stage">
+          <video id="video" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <div class="card">
+          <h2>Video</h2>
+          <label for="video-file">Choose clip</label>
+          <input id="video-file" type="file" accept="video/*" />
+          <div class="time-row" style="margin-top: 0.75rem">
+            <input id="scrub" type="range" min="0" max="0" step="0.01" value="0" disabled />
+            <output id="time-label">0:00</output>
+          </div>
+          <p class="hint" style="margin-top: 0.5rem">
+            Pause on a frame where the scoreboard overlay is clearly visible.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>Required regions</h2>
+          <div class="btn-grid-3">
+            <button type="button" id="mode-game-clock" class="active-game-clock">Game Clock</button>
+            <button type="button" id="mode-home-score">Home</button>
+            <button type="button" id="mode-away-score">Away</button>
+          </div>
+          <div class="legend" style="margin: 0.625rem 0">
+            <span><i class="dot game-clock"></i> Clock</span>
+            <span><i class="dot home-score"></i> Home</span>
+            <span><i class="dot away-score"></i> Away</span>
+          </div>
+          <p class="hint">
+            Click and drag on the video to draw a box around each region.
+            Coordinates are normalized (0–1).
+          </p>
+          <div class="btn-grid-3" style="margin-top: 0.625rem">
+            <button type="button" id="clear-game-clock">Clear</button>
+            <button type="button" id="clear-home-score">Clear</button>
+            <button type="button" id="clear-away-score">Clear</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Optional regions</h2>
+          <div class="btn-grid">
+            <button type="button" id="mode-shot-clock">Shot Clock</button>
+            <button type="button" id="mode-quarter">Quarter</button>
+          </div>
+          <div class="legend" style="margin: 0.625rem 0">
+            <span><i class="dot shot-clock"></i> Shot Clock</span>
+            <span><i class="dot quarter"></i> Quarter</span>
+          </div>
+          <p class="hint">
+            Shot clock (24-second) and quarter/period indicator are optional.
+          </p>
+          <div class="btn-grid" style="margin-top: 0.625rem">
+            <button type="button" id="clear-shot-clock">Clear</button>
+            <button type="button" id="clear-quarter">Clear</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Status</h2>
+          <div class="region-status" id="region-status">
+            Game Clock: <span class="not-set">not set</span><br>
+            Home Score: <span class="not-set">not set</span><br>
+            Away Score: <span class="not-set">not set</span><br>
+            Shot Clock: <span class="not-set">not set</span><br>
+            Quarter: <span class="not-set">not set</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Export</h2>
+          <label for="clip-key">Clip key (optional)</label>
+          <input
+            id="clip-key"
+            type="text"
+            placeholder="game_broadcast.mp4"
+            style="
+              width: 100%;
+              padding: 0.45rem 0.55rem;
+              border-radius: 6px;
+              border: 1px solid var(--border);
+              background: #0b1018;
+              color: var(--text);
+              margin-bottom: 0.625rem;
+              font-size: 0.8125rem;
+            "
+          />
+          <button type="button" id="download-json" class="primary">Download scoreboard_roi.json</button>
+          <button type="button" id="copy-json" style="margin-top: 0.5rem">Copy JSON</button>
+          <label for="import-json" style="margin-top: 0.75rem">Import existing JSON</label>
+          <input id="import-json" type="file" accept="application/json,.json" />
+        </div>
+
+        <div class="card">
+          <h2>Preview</h2>
+          <pre id="json-preview">{}</pre>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      /** @typedef {{ x: number, y: number, w: number, h: number }} Region */
+      /** @typedef {{ x: number, y: number, w: number, h: number }} PixelRect */
+
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("overlay");
+      const ctx = canvas.getContext("2d");
+      const videoFile = document.getElementById("video-file");
+      const scrub = document.getElementById("scrub");
+      const timeLabel = document.getElementById("time-label");
+      const jsonPreview = document.getElementById("json-preview");
+      const clipKeyInput = document.getElementById("clip-key");
+      const regionStatus = document.getElementById("region-status");
+
+      const modeButtons = {
+        "game_clock": document.getElementById("mode-game-clock"),
+        "home_score": document.getElementById("mode-home-score"),
+        "away_score": document.getElementById("mode-away-score"),
+        "shot_clock": document.getElementById("mode-shot-clock"),
+        "quarter": document.getElementById("mode-quarter"),
+      };
+
+      const clearButtons = {
+        "game_clock": document.getElementById("clear-game-clock"),
+        "home_score": document.getElementById("clear-home-score"),
+        "away_score": document.getElementById("clear-away-score"),
+        "shot_clock": document.getElementById("clear-shot-clock"),
+        "quarter": document.getElementById("clear-quarter"),
+      };
+
+      const regionColors = {
+        "game_clock": "#f97316",
+        "home_score": "#38bdf8",
+        "away_score": "#a855f7",
+        "shot_clock": "#22c55e",
+        "quarter": "#eab308",
+      };
+
+      const regionLabels = {
+        "game_clock": "CLOCK",
+        "home_score": "HOME",
+        "away_score": "AWAY",
+        "shot_clock": "SHOT",
+        "quarter": "QTR",
+      };
+
+      /** @type {"game_clock" | "home_score" | "away_score" | "shot_clock" | "quarter"} */
+      let activeMode = "game_clock";
+
+      /** @type {Record<string, Region | null>} */
+      const regions = {
+        "game_clock": null,
+        "home_score": null,
+        "away_score": null,
+        "shot_clock": null,
+        "quarter": null,
+      };
+
+      /** @type {PixelRect | null} */
+      let dragStart = null;
+      /** @type {PixelRect | null} */
+      let dragCurrent = null;
+
+      function formatTime(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${String(s).padStart(2, "0")}`;
+      }
+
+      function videoPixelSize() {
+        return {
+          width: video.videoWidth || 1,
+          height: video.videoHeight || 1,
+        };
+      }
+
+      function displayRect() {
+        const rect = video.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      }
+
+      function syncCanvasSize() {
+        const d = displayRect();
+        canvas.width = Math.round(d.width);
+        canvas.height = Math.round(d.height);
+        drawOverlay();
+      }
+
+      function clamp01(v) {
+        return Math.min(1, Math.max(0, v));
+      }
+
+      /** @param {Region} roi */
+      function roiToDisplayRect(roi) {
+        const disp = displayRect();
+        return {
+          x: roi.x * disp.width,
+          y: roi.y * disp.height,
+          w: roi.w * disp.width,
+          h: roi.h * disp.height,
+        };
+      }
+
+      /** @param {PixelRect} rect */
+      function pixelRectToNorm(rect) {
+        const disp = displayRect();
+        const vid = videoPixelSize();
+        const x1 = (rect.x / disp.width) * vid.width;
+        const y1 = (rect.y / disp.height) * vid.height;
+        const x2 = ((rect.x + rect.w) / disp.width) * vid.width;
+        const y2 = ((rect.y + rect.h) / disp.height) * vid.height;
+        return {
+          x: clamp01(Math.min(x1, x2) / vid.width),
+          y: clamp01(Math.min(y1, y2) / vid.height),
+          w: clamp01(Math.abs(x2 - x1) / vid.width),
+          h: clamp01(Math.abs(y2 - y1) / vid.height),
+        };
+      }
+
+      /** @param {Region} roi @param {string} color @param {string} label */
+      function drawBox(roi, color, label) {
+        const r = roiToDisplayRect(roi);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        ctx.fillStyle = color;
+        ctx.font = "600 11px system-ui, sans-serif";
+        ctx.fillText(label, r.x + 3, r.y + 12);
+      }
+
+      /** @param {PixelRect} rect @param {string} color */
+      function drawDragRect(rect, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.setLineDash([]);
+      }
+
+      function drawOverlay() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const [key, roi] of Object.entries(regions)) {
+          if (roi) {
+            drawBox(roi, regionColors[key], regionLabels[key]);
+          }
+        }
+        if (dragCurrent) {
+          drawDragRect(dragCurrent, regionColors[activeMode]);
+        }
+      }
+
+      function setMode(mode) {
+        activeMode = mode;
+        for (const [key, btn] of Object.entries(modeButtons)) {
+          const activeClass = `active-${key.replace("_", "-")}`;
+          btn.classList.toggle(activeClass, key === mode);
+        }
+      }
+
+      function updateStatus() {
+        const lines = [];
+        for (const [key, roi] of Object.entries(regions)) {
+          const label = key.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase());
+          if (roi) {
+            lines.push(`${label}: <span class="set">set</span>`);
+          } else {
+            lines.push(`${label}: <span class="not-set">not set</span>`);
+          }
+        }
+        regionStatus.innerHTML = lines.join("<br>");
+      }
+
+      function buildArtifact() {
+        const regionsOut = {};
+        for (const [key, roi] of Object.entries(regions)) {
+          if (roi) {
+            regionsOut[key] = roi;
+          }
+        }
+        return {
+          format: "top-left-normalized",
+          source: "manual",
+          clipKey: clipKeyInput.value.trim() || null,
+          updatedAt: new Date().toISOString(),
+          regions: regionsOut,
+        };
+      }
+
+      function refreshPreview() {
+        updateStatus();
+        jsonPreview.textContent = JSON.stringify(buildArtifact(), null, 2);
+      }
+
+      /** @param {PointerEvent} event */
+      function canvasCoords(event) {
+        const bounds = canvas.getBoundingClientRect();
+        return {
+          x: event.clientX - bounds.left,
+          y: event.clientY - bounds.top,
+        };
+      }
+
+      canvas.addEventListener("pointerdown", (event) => {
+        if (!video.src) return;
+        const p = canvasCoords(event);
+        canvas.setPointerCapture(event.pointerId);
+        dragStart = { x: p.x, y: p.y, w: 0, h: 0 };
+        dragCurrent = { x: p.x, y: p.y, w: 0, h: 0 };
+        drawOverlay();
+      });
+
+      canvas.addEventListener("pointermove", (event) => {
+        if (!dragStart) return;
+        const p = canvasCoords(event);
+        dragCurrent = {
+          x: Math.min(dragStart.x, p.x),
+          y: Math.min(dragStart.y, p.y),
+          w: Math.abs(p.x - dragStart.x),
+          h: Math.abs(p.y - dragStart.y),
+        };
+        drawOverlay();
+      });
+
+      function finishDrag() {
+        if (!dragCurrent || dragCurrent.w < 4 || dragCurrent.h < 4) {
+          dragStart = null;
+          dragCurrent = null;
+          drawOverlay();
+          return;
+        }
+        const roi = pixelRectToNorm(dragCurrent);
+        regions[activeMode] = roi;
+        refreshPreview();
+        dragStart = null;
+        dragCurrent = null;
+        drawOverlay();
+      }
+
+      canvas.addEventListener("pointerup", finishDrag);
+      canvas.addEventListener("pointercancel", finishDrag);
+
+      for (const [key, btn] of Object.entries(modeButtons)) {
+        btn.addEventListener("click", () => setMode(key));
+      }
+
+      for (const [key, btn] of Object.entries(clearButtons)) {
+        btn.addEventListener("click", () => {
+          regions[key] = null;
+          refreshPreview();
+          drawOverlay();
+        });
+      }
+
+      videoFile.addEventListener("change", () => {
+        const file = videoFile.files?.[0];
+        if (!file) return;
+        video.src = URL.createObjectURL(file);
+        clipKeyInput.value = file.name;
+        video.load();
+      });
+
+      video.addEventListener("loadedmetadata", () => {
+        scrub.disabled = false;
+        scrub.max = String(video.duration || 0);
+        scrub.value = "0";
+        syncCanvasSize();
+        refreshPreview();
+      });
+
+      video.addEventListener("timeupdate", () => {
+        if (!scrub.matches(":active")) {
+          scrub.value = String(video.currentTime);
+        }
+        timeLabel.textContent = formatTime(video.currentTime);
+      });
+
+      scrub.addEventListener("input", () => {
+        video.currentTime = Number(scrub.value);
+        timeLabel.textContent = formatTime(video.currentTime);
+      });
+
+      window.addEventListener("resize", syncCanvasSize);
+
+      document.getElementById("download-json").addEventListener("click", () => {
+        const blob = new Blob([JSON.stringify(buildArtifact(), null, 2)], {
+          type: "application/json",
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "scoreboard_roi.json";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+
+      document.getElementById("copy-json").addEventListener("click", async () => {
+        await navigator.clipboard.writeText(JSON.stringify(buildArtifact(), null, 2));
+      });
+
+      document.getElementById("import-json").addEventListener("change", (event) => {
+        const input = /** @type {HTMLInputElement} */ (event.target);
+        const file = input.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const data = JSON.parse(String(reader.result));
+            if (data.clipKey) clipKeyInput.value = data.clipKey;
+            if (data.regions) {
+              for (const key of Object.keys(regions)) {
+                if (data.regions[key]) {
+                  const r = data.regions[key];
+                  regions[key] = {
+                    x: clamp01(Number(r.x)),
+                    y: clamp01(Number(r.y)),
+                    w: clamp01(Number(r.w)),
+                    h: clamp01(Number(r.h)),
+                  };
+                } else {
+                  regions[key] = null;
+                }
+              }
+            }
+            refreshPreview();
+            drawOverlay();
+          } catch {
+            alert("Invalid JSON file");
+          }
+        };
+        reader.readAsText(file);
+        input.value = "";
+      });
+
+      refreshPreview();
+    </script>
+  </body>
+</html>

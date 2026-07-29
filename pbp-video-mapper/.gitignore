@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+output/*.json
+!output/.gitkeep
+*.mp4
+*.webm
+*.mkv
+.DS_Store

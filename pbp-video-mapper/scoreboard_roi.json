@@ -1,0 +1,14 @@
+{
+  "format": "top-left-normalized",
+  "source": "manual",
+  "clipKey": "clip120.mp4.webm",
+  "updatedAt": "2026-07-29T11:07:39.248Z",
+  "regions": {
+    "game_clock": {
+      "x": 0.0478515625,
+      "y": 0.8253566066066066,
+      "w": 0.09634976773648649,
+      "h": 0.0979143205705706
+    }
+  }
+}

@@ -1,0 +1,1590 @@
+{
+  "version": "1.0.0",
+  "videoPath": "clip120.mp4.webm",
+  "sampleFps": 1.0,
+  "totalFrames": 120,
+  "readings": [
+    {
+      "videoTimeSec": 0.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 1.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "4"
+      }
+    },
+    {
+      "videoTimeSec": 2.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 3.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "2"
+      }
+    },
+    {
+      "videoTimeSec": 4.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 5.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 6.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "1"
+      }
+    },
+    {
+      "videoTimeSec": 7.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "1"
+      }
+    },
+    {
+      "videoTimeSec": 8.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "1"
+      }
+    },
+    {
+      "videoTimeSec": 9.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "0"
+      }
+    },
+    {
+      "videoTimeSec": 10.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 11.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 12.0,
+      "gameClock": "9:58",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:58"
+      }
+    },
+    {
+      "videoTimeSec": 13.0,
+      "gameClock": "9:57",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:57"
+      }
+    },
+    {
+      "videoTimeSec": 14.0,
+      "gameClock": "9:56",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:56"
+      }
+    },
+    {
+      "videoTimeSec": 15.0,
+      "gameClock": "9:55",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:55"
+      }
+    },
+    {
+      "videoTimeSec": 16.0,
+      "gameClock": "9:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:54"
+      }
+    },
+    {
+      "videoTimeSec": 17.0,
+      "gameClock": "9:53",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:53"
+      }
+    },
+    {
+      "videoTimeSec": 18.0,
+      "gameClock": "9:52",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:52"
+      }
+    },
+    {
+      "videoTimeSec": 19.0,
+      "gameClock": "9:51",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:51"
+      }
+    },
+    {
+      "videoTimeSec": 20.0,
+      "gameClock": "9:50",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:50"
+      }
+    },
+    {
+      "videoTimeSec": 21.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 22.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 23.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 24.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 25.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 26.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 27.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 28.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 29.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 30.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 31.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 32.0,
+      "gameClock": "9:49",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:49"
+      }
+    },
+    {
+      "videoTimeSec": 33.0,
+      "gameClock": "9:48",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:48"
+      }
+    },
+    {
+      "videoTimeSec": 34.0,
+      "gameClock": "9:47",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:47"
+      }
+    },
+    {
+      "videoTimeSec": 35.0,
+      "gameClock": "9:46",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:46"
+      }
+    },
+    {
+      "videoTimeSec": 36.0,
+      "gameClock": "9:45",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:45"
+      }
+    },
+    {
+      "videoTimeSec": 37.0,
+      "gameClock": "9:44",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:44"
+      }
+    },
+    {
+      "videoTimeSec": 38.0,
+      "gameClock": "9:43",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:43"
+      }
+    },
+    {
+      "videoTimeSec": 39.0,
+      "gameClock": "9:42",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:42"
+      }
+    },
+    {
+      "videoTimeSec": 40.0,
+      "gameClock": "9:41",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:41"
+      }
+    },
+    {
+      "videoTimeSec": 41.0,
+      "gameClock": "9:40",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:40"
+      }
+    },
+    {
+      "videoTimeSec": 42.0,
+      "gameClock": "9:39",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:39"
+      }
+    },
+    {
+      "videoTimeSec": 43.0,
+      "gameClock": "9:38",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:38"
+      }
+    },
+    {
+      "videoTimeSec": 44.0,
+      "gameClock": "9:37",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:37"
+      }
+    },
+    {
+      "videoTimeSec": 45.0,
+      "gameClock": "9:36",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:36"
+      }
+    },
+    {
+      "videoTimeSec": 46.0,
+      "gameClock": "9:35",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:35"
+      }
+    },
+    {
+      "videoTimeSec": 47.0,
+      "gameClock": "9:34",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:34"
+      }
+    },
+    {
+      "videoTimeSec": 48.0,
+      "gameClock": "9:33",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:33"
+      }
+    },
+    {
+      "videoTimeSec": 49.0,
+      "gameClock": "9:32",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:32"
+      }
+    },
+    {
+      "videoTimeSec": 50.0,
+      "gameClock": "9:31",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:31"
+      }
+    },
+    {
+      "videoTimeSec": 51.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 52.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 53.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 54.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 55.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 56.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 57.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 58.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 59.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 60.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 61.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 62.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 63.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 64.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "0551"
+      }
+    },
+    {
+      "videoTimeSec": 65.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 66.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "2"
+      }
+    },
+    {
+      "videoTimeSec": 67.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 68.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 69.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 70.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 71.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 72.0,
+      "gameClock": "9:30",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:30"
+      }
+    },
+    {
+      "videoTimeSec": 73.0,
+      "gameClock": "9:29",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:29"
+      }
+    },
+    {
+      "videoTimeSec": 74.0,
+      "gameClock": "9:28",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:28"
+      }
+    },
+    {
+      "videoTimeSec": 75.0,
+      "gameClock": "9:27",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:27"
+      }
+    },
+    {
+      "videoTimeSec": 76.0,
+      "gameClock": "9:26",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:26"
+      }
+    },
+    {
+      "videoTimeSec": 77.0,
+      "gameClock": "9:25",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:25"
+      }
+    },
+    {
+      "videoTimeSec": 78.0,
+      "gameClock": "9:24",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:24"
+      }
+    },
+    {
+      "videoTimeSec": 79.0,
+      "gameClock": "9:23",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:23"
+      }
+    },
+    {
+      "videoTimeSec": 80.0,
+      "gameClock": "9:22",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:22"
+      }
+    },
+    {
+      "videoTimeSec": 81.0,
+      "gameClock": "9:21",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:21"
+      }
+    },
+    {
+      "videoTimeSec": 82.0,
+      "gameClock": "9:20",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:20"
+      }
+    },
+    {
+      "videoTimeSec": 83.0,
+      "gameClock": "9:19",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:19"
+      }
+    },
+    {
+      "videoTimeSec": 84.0,
+      "gameClock": "9:18",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:18"
+      }
+    },
+    {
+      "videoTimeSec": 85.0,
+      "gameClock": "9:17",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:17"
+      }
+    },
+    {
+      "videoTimeSec": 86.0,
+      "gameClock": "9:16",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:16"
+      }
+    },
+    {
+      "videoTimeSec": 87.0,
+      "gameClock": "9:15",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:15"
+      }
+    },
+    {
+      "videoTimeSec": 88.0,
+      "gameClock": "9:14",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:14"
+      }
+    },
+    {
+      "videoTimeSec": 89.0,
+      "gameClock": "9:13",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:13"
+      }
+    },
+    {
+      "videoTimeSec": 90.0,
+      "gameClock": "9:12",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:12"
+      }
+    },
+    {
+      "videoTimeSec": 91.0,
+      "gameClock": "9:11",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:11"
+      }
+    },
+    {
+      "videoTimeSec": 92.0,
+      "gameClock": "9:10",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:10"
+      }
+    },
+    {
+      "videoTimeSec": 93.0,
+      "gameClock": "9:09",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:09"
+      }
+    },
+    {
+      "videoTimeSec": 94.0,
+      "gameClock": "9:08",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:08"
+      }
+    },
+    {
+      "videoTimeSec": 95.0,
+      "gameClock": "9:07",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:07"
+      }
+    },
+    {
+      "videoTimeSec": 96.0,
+      "gameClock": "9:06",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:06"
+      }
+    },
+    {
+      "videoTimeSec": 97.0,
+      "gameClock": "9:05",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:05"
+      }
+    },
+    {
+      "videoTimeSec": 98.0,
+      "gameClock": "9:04",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:04"
+      }
+    },
+    {
+      "videoTimeSec": 99.0,
+      "gameClock": "9:03",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:03"
+      }
+    },
+    {
+      "videoTimeSec": 100.0,
+      "gameClock": "9:02",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:02"
+      }
+    },
+    {
+      "videoTimeSec": 101.0,
+      "gameClock": "9:01",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:01"
+      }
+    },
+    {
+      "videoTimeSec": 102.0,
+      "gameClock": "9:00",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "9:00"
+      }
+    },
+    {
+      "videoTimeSec": 103.0,
+      "gameClock": "8:59",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:59"
+      }
+    },
+    {
+      "videoTimeSec": 104.0,
+      "gameClock": "8:58",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:58"
+      }
+    },
+    {
+      "videoTimeSec": 105.0,
+      "gameClock": "8:57",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:57"
+      }
+    },
+    {
+      "videoTimeSec": 106.0,
+      "gameClock": "8:56",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:56"
+      }
+    },
+    {
+      "videoTimeSec": 107.0,
+      "gameClock": "8:55",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:55"
+      }
+    },
+    {
+      "videoTimeSec": 108.0,
+      "gameClock": "8:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:54"
+      }
+    },
+    {
+      "videoTimeSec": 109.0,
+      "gameClock": "8:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:54"
+      }
+    },
+    {
+      "videoTimeSec": 110.0,
+      "gameClock": "8:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:54"
+      }
+    },
+    {
+      "videoTimeSec": 111.0,
+      "gameClock": "8:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:54"
+      }
+    },
+    {
+      "videoTimeSec": 112.0,
+      "gameClock": "8:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:54"
+      }
+    },
+    {
+      "videoTimeSec": 113.0,
+      "gameClock": "8:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:54"
+      }
+    },
+    {
+      "videoTimeSec": 114.0,
+      "gameClock": "8:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "8:54"
+      }
+    },
+    {
+      "videoTimeSec": 115.0,
+      "gameClock": "8:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 116.0,
+      "gameClock": "8:54",
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": "2"
+      }
+    },
+    {
+      "videoTimeSec": 117.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 118.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    },
+    {
+      "videoTimeSec": 119.0,
+      "gameClock": null,
+      "homeScore": null,
+      "awayScore": null,
+      "shotClockSec": null,
+      "quarter": null,
+      "rawOcr": {
+        "game_clock": ""
+      }
+    }
+  ],
+  "gameClockToVideo": [
+    {
+      "gameClock": "9:58",
+      "videoTimeSec": 12.0
+    },
+    {
+      "gameClock": "9:57",
+      "videoTimeSec": 13.0
+    },
+    {
+      "gameClock": "9:56",
+      "videoTimeSec": 14.0
+    },
+    {
+      "gameClock": "9:55",
+      "videoTimeSec": 15.0
+    },
+    {
+      "gameClock": "9:54",
+      "videoTimeSec": 16.0
+    },
+    {
+      "gameClock": "9:53",
+      "videoTimeSec": 17.0
+    },
+    {
+      "gameClock": "9:52",
+      "videoTimeSec": 18.0
+    },
+    {
+      "gameClock": "9:51",
+      "videoTimeSec": 19.0
+    },
+    {
+      "gameClock": "9:50",
+      "videoTimeSec": 20.0
+    },
+    {
+      "gameClock": "9:49",
+      "videoTimeSec": 21.0
+    },
+    {
+      "gameClock": "9:48",
+      "videoTimeSec": 33.0
+    },
+    {
+      "gameClock": "9:47",
+      "videoTimeSec": 34.0
+    },
+    {
+      "gameClock": "9:46",
+      "videoTimeSec": 35.0
+    },
+    {
+      "gameClock": "9:45",
+      "videoTimeSec": 36.0
+    },
+    {
+      "gameClock": "9:44",
+      "videoTimeSec": 37.0
+    },
+    {
+      "gameClock": "9:43",
+      "videoTimeSec": 38.0
+    },
+    {
+      "gameClock": "9:42",
+      "videoTimeSec": 39.0
+    },
+    {
+      "gameClock": "9:41",
+      "videoTimeSec": 40.0
+    },
+    {
+      "gameClock": "9:40",
+      "videoTimeSec": 41.0
+    },
+    {
+      "gameClock": "9:39",
+      "videoTimeSec": 42.0
+    },
+    {
+      "gameClock": "9:38",
+      "videoTimeSec": 43.0
+    },
+    {
+      "gameClock": "9:37",
+      "videoTimeSec": 44.0
+    },
+    {
+      "gameClock": "9:36",
+      "videoTimeSec": 45.0
+    },
+    {
+      "gameClock": "9:35",
+      "videoTimeSec": 46.0
+    },
+    {
+      "gameClock": "9:34",
+      "videoTimeSec": 47.0
+    },
+    {
+      "gameClock": "9:33",
+      "videoTimeSec": 48.0
+    },
+    {
+      "gameClock": "9:32",
+      "videoTimeSec": 49.0
+    },
+    {
+      "gameClock": "9:31",
+      "videoTimeSec": 50.0
+    },
+    {
+      "gameClock": "9:30",
+      "videoTimeSec": 51.0
+    },
+    {
+      "gameClock": "9:29",
+      "videoTimeSec": 73.0
+    },
+    {
+      "gameClock": "9:28",
+      "videoTimeSec": 74.0
+    },
+    {
+      "gameClock": "9:27",
+      "videoTimeSec": 75.0
+    },
+    {
+      "gameClock": "9:26",
+      "videoTimeSec": 76.0
+    },
+    {
+      "gameClock": "9:25",
+      "videoTimeSec": 77.0
+    },
+    {
+      "gameClock": "9:24",
+      "videoTimeSec": 78.0
+    },
+    {
+      "gameClock": "9:23",
+      "videoTimeSec": 79.0
+    },
+    {
+      "gameClock": "9:22",
+      "videoTimeSec": 80.0
+    },
+    {
+      "gameClock": "9:21",
+      "videoTimeSec": 81.0
+    },
+    {
+      "gameClock": "9:20",
+      "videoTimeSec": 82.0
+    },
+    {
+      "gameClock": "9:19",
+      "videoTimeSec": 83.0
+    },
+    {
+      "gameClock": "9:18",
+      "videoTimeSec": 84.0
+    },
+    {
+      "gameClock": "9:17",
+      "videoTimeSec": 85.0
+    },
+    {
+      "gameClock": "9:16",
+      "videoTimeSec": 86.0
+    },
+    {
+      "gameClock": "9:15",
+      "videoTimeSec": 87.0
+    },
+    {
+      "gameClock": "9:14",
+      "videoTimeSec": 88.0
+    },
+    {
+      "gameClock": "9:13",
+      "videoTimeSec": 89.0
+    },
+    {
+      "gameClock": "9:12",
+      "videoTimeSec": 90.0
+    },
+    {
+      "gameClock": "9:11",
+      "videoTimeSec": 91.0
+    },
+    {
+      "gameClock": "9:10",
+      "videoTimeSec": 92.0
+    },
+    {
+      "gameClock": "9:09",
+      "videoTimeSec": 93.0
+    },
+    {
+      "gameClock": "9:08",
+      "videoTimeSec": 94.0
+    },
+    {
+      "gameClock": "9:07",
+      "videoTimeSec": 95.0
+    },
+    {
+      "gameClock": "9:06",
+      "videoTimeSec": 96.0
+    },
+    {
+      "gameClock": "9:05",
+      "videoTimeSec": 97.0
+    },
+    {
+      "gameClock": "9:04",
+      "videoTimeSec": 98.0
+    },
+    {
+      "gameClock": "9:03",
+      "videoTimeSec": 99.0
+    },
+    {
+      "gameClock": "9:02",
+      "videoTimeSec": 100.0
+    },
+    {
+      "gameClock": "9:01",
+      "videoTimeSec": 101.0
+    },
+    {
+      "gameClock": "9:00",
+      "videoTimeSec": 102.0
+    },
+    {
+      "gameClock": "8:59",
+      "videoTimeSec": 103.0
+    },
+    {
+      "gameClock": "8:58",
+      "videoTimeSec": 104.0
+    },
+    {
+      "gameClock": "8:57",
+      "videoTimeSec": 105.0
+    },
+    {
+      "gameClock": "8:56",
+      "videoTimeSec": 106.0
+    },
+    {
+      "gameClock": "8:55",
+      "videoTimeSec": 107.0
+    },
+    {
+      "gameClock": "8:54",
+      "videoTimeSec": 108.0
+    }
+  ]
+}
