@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Play renderer — player movement replay</title>
+    <style>
+      :root {
+        --bg: #0f1419;
+        --panel: #1a2332;
+        --text: #e7ecf3;
+        --muted: #8b9cb3;
+        --accent: #22c55e;
+        --border: #2d3a4f;
+        --court-line: #5b708c;
+        --court-fill: #131c29;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+      }
+
+      header h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.125rem;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.875rem;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 1rem;
+        padding: 1rem;
+        align-items: start;
+      }
+
+      @media (max-width: 960px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .stage-wrap {
+        background: #000;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        padding: 0.75rem;
+      }
+
+      #court {
+        width: 100%;
+        display: block;
+        border-radius: 4px;
+        cursor: default;
+      }
+
+      #court.adjusting {
+        cursor: grab;
+      }
+
+      #court.adjusting:active {
+        cursor: grabbing;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      input[type="number"] {
+        width: 100%;
+        padding: 0.45rem 0.55rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: #0b1018;
+        color: var(--text);
+      }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        margin-top: 0.75rem;
+      }
+
+      .controls output {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        min-width: 6.5rem;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .controls input[type="range"] {
+        flex: 1;
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.875rem;
+      }
+
+      .card h2 {
+        margin: 0 0 0.625rem;
+        font-size: 0.8125rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+
+      label {
+        display: block;
+        font-size: 0.8125rem;
+        color: var(--muted);
+        margin-bottom: 0.25rem;
+      }
+
+      input[type="file"],
+      select,
+      button {
+        width: 100%;
+        font: inherit;
+      }
+
+      input[type="file"] {
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+
+      select {
+        padding: 0.45rem 0.55rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: #0b1018;
+        color: var(--text);
+      }
+
+      button {
+        border: 1px solid var(--border);
+        background: #243044;
+        color: var(--text);
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #2c3a52;
+      }
+
+      button.primary {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 25%, #243044);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+      }
+
+      .hint {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        line-height: 1.45;
+        margin: 0;
+      }
+
+      #player-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+        max-height: 320px;
+        overflow: auto;
+      }
+
+      .player-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8125rem;
+        padding: 0.25rem 0.375rem;
+        border-radius: 4px;
+      }
+
+      .player-row:hover {
+        background: #223048;
+      }
+
+      .player-row input {
+        margin: 0;
+      }
+
+      .swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        flex: none;
+      }
+
+      .player-row .meta {
+        color: var(--muted);
+        margin-left: auto;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .stat-line {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        margin: 0.25rem 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Play renderer</h1>
+      <p>
+        Load <code>player_movement.json</code>, replay on a top-down court. Use
+        <strong>Adjust</strong> to drag/rotate/scale players onto the court, then
+        export <code>court_adjust.json</code> and run
+        <code>apply_court_adjust.py</code> to update calibration.
+      </p>
+    </header>
+
+    <main>
+      <section class="stage-wrap">
+        <canvas id="court"></canvas>
+        <div class="controls">
+          <button id="play-btn" style="width: auto; min-width: 5rem" disabled>Play</button>
+          <input id="timeline" type="range" min="0" max="0" step="0.01" value="0" disabled />
+          <output id="time-label">0.0 / 0.0s</output>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <div class="card">
+          <h2>Data</h2>
+          <label for="json-file">player_movement.json</label>
+          <input id="json-file" type="file" accept="application/json,.json" />
+          <p class="stat-line" id="data-info">No data loaded.</p>
+        </div>
+
+        <div class="card">
+          <h2>Playback</h2>
+          <div class="row">
+            <div>
+              <label for="speed">Speed</label>
+              <select id="speed">
+                <option value="0.25">0.25x</option>
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="4">4x</option>
+              </select>
+            </div>
+            <div>
+              <label for="mode">Mode</label>
+              <select id="mode">
+                <option value="replay" selected>Animated replay</option>
+                <option value="trails">Full play trails</option>
+              </select>
+            </div>
+          </div>
+          <label for="trail-sec" style="margin-top: 0.625rem">
+            Trail length: <span id="trail-sec-label">0.0</span>s
+          </label>
+          <input id="trail-sec" type="range" min="0" max="10" step="0.5" value="0" style="width: 100%" />
+          <label style="margin-top: 0.625rem; display: flex; align-items: center; gap: 0.4rem">
+            <input type="checkbox" id="show-refs" style="width: auto" />
+            Show referees
+          </label>
+        </div>
+
+        <div class="card">
+          <h2>Adjust court fit</h2>
+          <p class="hint">
+            Court stays fixed. Drag on the canvas to move players; use sliders for
+            rotate/scale. Export adjust JSON, then run the apply script on your
+            calibration file.
+          </p>
+          <label style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.4rem">
+            <input type="checkbox" id="adjust-mode" style="width: auto" />
+            Adjust mode (drag players)
+          </label>
+          <label for="adj-rot" style="margin-top: 0.625rem">
+            Rotate: <span id="adj-rot-label">0</span>°
+          </label>
+          <input id="adj-rot" type="range" min="-45" max="45" step="0.5" value="0" />
+          <label for="adj-scale" style="margin-top: 0.5rem">
+            Scale: <span id="adj-scale-label">1.00</span>
+          </label>
+          <input id="adj-scale" type="range" min="0.7" max="1.4" step="0.01" value="1" />
+          <div class="row" style="margin-top: 0.5rem">
+            <div>
+              <label for="adj-tx">Shift X (m)</label>
+              <input id="adj-tx" type="number" step="0.05" value="0" />
+            </div>
+            <div>
+              <label for="adj-ty">Shift Y (m)</label>
+              <input id="adj-ty" type="number" step="0.05" value="0" />
+            </div>
+          </div>
+          <label style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.4rem">
+            <input type="checkbox" id="adj-flipx" style="width: auto" />
+            Flip left/right
+          </label>
+          <div class="row" style="margin-top: 0.625rem">
+            <button type="button" id="adj-reset">Reset</button>
+            <button type="button" id="adj-export" class="primary">Export adjust JSON</button>
+          </div>
+          <p class="stat-line" id="adj-status">No adjustment.</p>
+        </div>
+
+        <div class="card">
+          <h2>Players</h2>
+          <div class="row" style="margin-bottom: 0.5rem">
+            <button id="all-on">All on</button>
+            <button id="all-off">All off</button>
+          </div>
+          <div id="player-list"></div>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      const canvas = document.getElementById("court");
+      const ctx = canvas.getContext("2d");
+      const playBtn = document.getElementById("play-btn");
+      const timeline = document.getElementById("timeline");
+      const timeLabel = document.getElementById("time-label");
+      const speedSelect = document.getElementById("speed");
+      const modeSelect = document.getElementById("mode");
+      const trailSecInput = document.getElementById("trail-sec");
+      const trailSecLabel = document.getElementById("trail-sec-label");
+      const showRefsInput = document.getElementById("show-refs");
+      const playerList = document.getElementById("player-list");
+      const dataInfo = document.getElementById("data-info");
+
+      const REF_COLOR = "#9ca3af";
+      const FALLBACK_COLORS = ["#38bdf8", "#f97316", "#a78bfa", "#facc15", "#f472b6"];
+
+      let data = null;
+      let players = []; // enriched: { raw, color, visible, label, tMin, tMax, pts }
+      let courtLength = 28;
+      let courtWidth = 15;
+      let courtLayout = "full"; // "full" | "half"
+      let pixelMode = false; // no calibration: plot normalized pixels
+      let tMin = 0;
+      let tMax = 0;
+      let currentT = 0;
+      let playing = false;
+      let lastTick = null;
+
+      // Court stays fixed; this similarity maps stored player court coords -> display coords.
+      let adjust = { tx: 0, ty: 0, rotationDeg: 0, scale: 1, flipX: false };
+      let adjustMode = false;
+      let dragStart = null; // { x, y, tx, ty } in canvas/court space
+
+      const adjustModeInput = document.getElementById("adjust-mode");
+      const adjRot = document.getElementById("adj-rot");
+      const adjRotLabel = document.getElementById("adj-rot-label");
+      const adjScale = document.getElementById("adj-scale");
+      const adjScaleLabel = document.getElementById("adj-scale-label");
+      const adjTx = document.getElementById("adj-tx");
+      const adjTy = document.getElementById("adj-ty");
+      const adjFlipX = document.getElementById("adj-flipx");
+      const adjStatus = document.getElementById("adj-status");
+
+      function syncAdjustControls() {
+        adjRot.value = String(adjust.rotationDeg);
+        adjRotLabel.textContent = Number(adjust.rotationDeg).toFixed(1);
+        adjScale.value = String(adjust.scale);
+        adjScaleLabel.textContent = Number(adjust.scale).toFixed(2);
+        adjTx.value = String(Number(adjust.tx.toFixed(3)));
+        adjTy.value = String(Number(adjust.ty.toFixed(3)));
+        adjFlipX.checked = adjust.flipX;
+        const identity =
+          Math.abs(adjust.tx) < 1e-6 &&
+          Math.abs(adjust.ty) < 1e-6 &&
+          Math.abs(adjust.rotationDeg) < 1e-6 &&
+          Math.abs(adjust.scale - 1) < 1e-6 &&
+          !adjust.flipX;
+        adjStatus.textContent = identity
+          ? "No adjustment."
+          : `tx=${adjust.tx.toFixed(2)} ty=${adjust.ty.toFixed(2)} rot=${adjust.rotationDeg.toFixed(1)}° scale=${adjust.scale.toFixed(2)}${adjust.flipX ? " flipX" : ""}`;
+      }
+
+      function applyPlayerTransform(x, y) {
+        const cx = courtLength / 2;
+        const cy = courtWidth / 2;
+        let px = x - cx;
+        let py = y - cy;
+        if (adjust.flipX) px = -px;
+        const s = adjust.scale;
+        const rad = (adjust.rotationDeg * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const rx = s * (cos * px - sin * py);
+        const ry = s * (sin * px + cos * py);
+        return { x: rx + cx + adjust.tx, y: ry + cy + adjust.ty };
+      }
+
+      function canvasToCourt(canvasX, canvasY) {
+        const s = scale();
+        const cssW = canvas.width / (window.devicePixelRatio || 1);
+        const cssH = canvas.height / (window.devicePixelRatio || 1);
+        const ox = (cssW - courtLength * s) / 2;
+        const oy = (cssH - courtWidth * s) / 2;
+        return { x: (canvasX - ox) / s, y: (canvasY - oy) / s };
+      }
+
+      function buildAdjustArtifact() {
+        return {
+          format: "court-adjust-v1",
+          updatedAt: new Date().toISOString(),
+          video: data?.video ?? null,
+          court: {
+            layout: courtLayout,
+            length: courtLength,
+            width: courtWidth,
+            unit: data?.court?.unit ?? "m",
+            preset: data?.court?.preset ?? null,
+          },
+          transform: {
+            tx: adjust.tx,
+            ty: adjust.ty,
+            rotationDeg: adjust.rotationDeg,
+            scale: adjust.scale,
+            flipX: adjust.flipX,
+            pivot: "court-center",
+            note: "Maps stored player court coords -> corrected court coords (court diagram fixed).",
+          },
+        };
+      }
+
+      // --- Data loading ---
+
+      document.getElementById("json-file").addEventListener("change", (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            loadData(JSON.parse(String(reader.result)));
+          } catch (err) {
+            alert("Invalid JSON file: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+        event.target.value = "";
+      });
+
+      function teamColor(team, jerseyColor, index) {
+        if (team === "referee") return REF_COLOR;
+        const entry = (data.teams || []).find((t) => t.id === team);
+        if (entry && Array.isArray(entry.color)) {
+          return `rgb(${entry.color[0]}, ${entry.color[1]}, ${entry.color[2]})`;
+        }
+        if (Array.isArray(jerseyColor) && jerseyColor.length === 3) {
+          return `rgb(${jerseyColor[0]}, ${jerseyColor[1]}, ${jerseyColor[2]})`;
+        }
+        return FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+      }
+
+      function loadData(parsed) {
+        data = parsed;
+        courtLength = data.court?.length ?? 28;
+        courtWidth = data.court?.width ?? 15;
+        const layout = data.court?.layout;
+        if (layout === "half" || layout === "full") {
+          courtLayout = layout;
+        } else {
+          // Legacy movement JSON without layout.
+          courtLayout = courtLength < 20 ? "half" : "full";
+        }
+
+        const rawPlayers = data.players || [];
+        pixelMode = !data.court || !rawPlayers.some((p) => p.points?.some((pt) => pt.x != null));
+
+        players = rawPlayers
+          .map((raw, index) => {
+            const pts = (raw.points || [])
+              .filter((pt) => (pixelMode ? pt.px != null : pt.x != null))
+              .map((pt) => ({
+                t: pt.t,
+                x: pixelMode ? pt.px * courtLength : pt.x,
+                y: pixelMode ? pt.py * courtWidth : pt.y,
+                interp: !!pt.interpolated,
+              }))
+              .sort((a, b) => a.t - b.t);
+            return {
+              raw,
+              pts,
+              color: teamColor(raw.team, raw.jerseyColor, index),
+              visible: raw.label !== "referee",
+              label: raw.jerseyNumber ? `#${raw.jerseyNumber}` : `T${raw.trackId}`,
+              tMin: pts.length ? pts[0].t : 0,
+              tMax: pts.length ? pts[pts.length - 1].t : 0,
+            };
+          })
+          .filter((p) => p.pts.length >= 2);
+
+        tMin = Math.min(...players.map((p) => p.tMin));
+        tMax = Math.max(...players.map((p) => p.tMax));
+        currentT = tMin;
+        playing = false;
+        playBtn.textContent = "Play";
+        playBtn.disabled = false;
+        timeline.disabled = false;
+        timeline.min = String(tMin);
+        timeline.max = String(tMax);
+        timeline.value = String(tMin);
+
+        const teamsDesc = (data.teams || [])
+          .map((t) => `${t.id}: rgb(${t.color.join(",")})`)
+          .join(", ");
+        dataInfo.textContent =
+          `${data.video ?? "?"} — ${players.length} tracks, ` +
+          `${(tMax - tMin).toFixed(1)}s` +
+          (pixelMode ? " (pixel mode — no calibration)" : "") +
+          (teamsDesc ? ` — teams ${teamsDesc}` : "");
+
+        buildPlayerList();
+        adjust = { tx: 0, ty: 0, rotationDeg: 0, scale: 1, flipX: false };
+        syncAdjustControls();
+        resizeCanvas();
+        draw();
+      }
+
+      function buildPlayerList() {
+        playerList.innerHTML = "";
+        for (const player of players) {
+          const row = document.createElement("label");
+          row.className = "player-row";
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = player.visible;
+          cb.addEventListener("change", () => {
+            player.visible = cb.checked;
+            draw();
+          });
+          const swatch = document.createElement("span");
+          swatch.className = "swatch";
+          swatch.style.background = player.color;
+          const name = document.createElement("span");
+          const team = player.raw.team && player.raw.team !== "referee" ? ` (${player.raw.team})` : "";
+          name.textContent =
+            player.raw.label === "referee" ? `Referee T${player.raw.trackId}` : `${player.label}${team}`;
+          const meta = document.createElement("span");
+          meta.className = "meta";
+          meta.textContent = `${player.pts.length} pts`;
+          row.append(cb, swatch, name, meta);
+          playerList.appendChild(row);
+        }
+      }
+
+      document.getElementById("all-on").addEventListener("click", () => {
+        players.forEach((p) => (p.visible = true));
+        buildPlayerList();
+        draw();
+      });
+
+      document.getElementById("all-off").addEventListener("click", () => {
+        players.forEach((p) => (p.visible = false));
+        buildPlayerList();
+        draw();
+      });
+
+      // --- Court geometry / drawing ---
+
+      const PAD = 30;
+
+      function resizeCanvas() {
+        const wrap = canvas.parentElement;
+        const cssWidth = wrap.clientWidth - 24;
+        const aspect = (courtWidth + 2) / (courtLength + 2);
+        const cssHeight = Math.max(240, cssWidth * aspect);
+        const dpr = window.devicePixelRatio || 1;
+        canvas.style.width = cssWidth + "px";
+        canvas.style.height = cssHeight + "px";
+        canvas.width = Math.round(cssWidth * dpr);
+        canvas.height = Math.round(cssHeight * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function scale() {
+        const cssW = canvas.width / (window.devicePixelRatio || 1);
+        const cssH = canvas.height / (window.devicePixelRatio || 1);
+        return Math.min((cssW - PAD * 2) / courtLength, (cssH - PAD * 2) / courtWidth);
+      }
+
+      function toCanvas(x, y) {
+        const s = scale();
+        const cssW = canvas.width / (window.devicePixelRatio || 1);
+        const cssH = canvas.height / (window.devicePixelRatio || 1);
+        const ox = (cssW - courtLength * s) / 2;
+        const oy = (cssH - courtWidth * s) / 2;
+        return { x: ox + x * s, y: oy + y * s };
+      }
+
+      function drawCourt() {
+        const s = scale();
+        const style = getComputedStyle(document.documentElement);
+        const line = style.getPropertyValue("--court-line").trim() || "#5b708c";
+        const fill = style.getPropertyValue("--court-fill").trim() || "#131c29";
+
+        const tl = toCanvas(0, 0);
+        ctx.fillStyle = fill;
+        ctx.fillRect(tl.x, tl.y, courtLength * s, courtWidth * s);
+        ctx.strokeStyle = line;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(tl.x, tl.y, courtLength * s, courtWidth * s);
+
+        if (pixelMode) return; // schematic markings are meaningless without calibration
+
+        // Half-court data (5v5 half or 3x3): baseline along the top edge,
+        // single hoop, FIBA/NBA-proportioned paint and arc.
+        if (courtLayout === "half") {
+          const isNba = courtLength > 15.2 || courtWidth > 14.2;
+          const k = courtLength / 15;
+          const paintW = isNba ? 4.88 : 4.9 * k;
+          const ftDist = isNba ? 5.79 : 5.8 * k;
+          const rimDist = isNba ? 1.575 : 1.575 * k;
+          const arcR = isNba ? 7.24 : 6.75 * k;
+          const circleR = 1.8 * k;
+          const midX = courtLength / 2;
+
+          const p = toCanvas(midX - paintW / 2, 0);
+          ctx.strokeRect(p.x, p.y, paintW * s, ftDist * s);
+
+          const ftC = toCanvas(midX, ftDist);
+          ctx.beginPath();
+          ctx.arc(ftC.x, ftC.y, circleR * s, 0, Math.PI);
+          ctx.stroke();
+
+          const rim = toCanvas(midX, rimDist);
+          ctx.beginPath();
+          ctx.arc(rim.x, rim.y, 0.35 * s, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // No-charge semicircle
+          ctx.beginPath();
+          ctx.arc(rim.x, rim.y, 1.25 * k * s, 0, Math.PI);
+          ctx.stroke();
+
+          // 3pt arc + corner segments (0.9m from the sidelines)
+          const cornerX = (isNba ? 0.91 : 0.9) * k;
+          const cosEnd = (midX - cornerX) / arcR;
+          const endAngle = Math.acos(Math.min(1, cosEnd));
+          ctx.beginPath();
+          ctx.arc(rim.x, rim.y, arcR * s, endAngle, Math.PI - endAngle);
+          ctx.stroke();
+          for (const cx of [cornerX, courtLength - cornerX]) {
+            const yEnd = rimDist + arcR * Math.sin(endAngle);
+            const a = toCanvas(cx, 0);
+            const b = toCanvas(cx, Math.min(yEnd, courtWidth));
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+          return;
+        }
+
+        // Proportional FIBA-style markings (NBA dims scale automatically).
+        const isNba = courtLength > 28.3;
+        const paintW = isNba ? 4.88 : (courtWidth / 15) * 4.9;
+        const ftDist = isNba ? 5.79 : (courtLength / 28) * 5.8;
+        const rimDist = isNba ? 1.6 : (courtLength / 28) * 1.575;
+        const arcR = isNba ? 7.24 : (courtLength / 28) * 6.75;
+        const cornerY = isNba ? 0.91 : (courtWidth / 15) * 0.9;
+        const circleR = 1.8 * (courtWidth / 15);
+
+        // Half-court line + center circle
+        const ht = toCanvas(courtLength / 2, 0);
+        const hb = toCanvas(courtLength / 2, courtWidth);
+        ctx.beginPath();
+        ctx.moveTo(ht.x, ht.y);
+        ctx.lineTo(hb.x, hb.y);
+        ctx.stroke();
+        const c = toCanvas(courtLength / 2, courtWidth / 2);
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, circleR * s, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const yTop = courtWidth / 2 - paintW / 2;
+
+        for (const side of ["left", "right"]) {
+          const flip = side === "right";
+          const bx = (v) => (flip ? courtLength - v : v);
+
+          // Paint box
+          const p = toCanvas(Math.min(bx(0), bx(ftDist)), yTop);
+          ctx.strokeRect(p.x, p.y, ftDist * s, paintW * s);
+
+          // Free-throw circle
+          const ftC = toCanvas(bx(ftDist), courtWidth / 2);
+          ctx.beginPath();
+          ctx.arc(ftC.x, ftC.y, circleR * s, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Rim
+          const rim = toCanvas(bx(rimDist), courtWidth / 2);
+          ctx.beginPath();
+          ctx.arc(rim.x, rim.y, 0.35 * s, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Three-point line: corner segments + arc
+          const cornerLen = Math.max(
+            0,
+            rimDist + Math.sqrt(Math.max(0, arcR * arcR - Math.pow(courtWidth / 2 - cornerY, 2)))
+          );
+          for (const cy of [cornerY, courtWidth - cornerY]) {
+            const a = toCanvas(bx(0), cy);
+            const b = toCanvas(bx(cornerLen), cy);
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+          const startAngle = Math.asin((courtWidth / 2 - cornerY) / arcR);
+          ctx.beginPath();
+          if (!flip) {
+            ctx.arc(rim.x, rim.y, arcR * s, -startAngle + 0, startAngle, false);
+          } else {
+            ctx.arc(rim.x, rim.y, arcR * s, Math.PI - startAngle, Math.PI + startAngle, false);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // --- Position interpolation ---
+
+      const MAX_INTERP_GAP = 6.0; // seconds; matches default merge/fill window
+
+      function positionAt(player, t) {
+        const pts = player.pts;
+        if (t < player.tMin - 0.001 || t > player.tMax + 0.001) return null;
+        let lo = 0;
+        let hi = pts.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >> 1;
+          if (pts[mid].t <= t) lo = mid;
+          else hi = mid - 1;
+        }
+        const a = pts[lo];
+        const b = pts[Math.min(lo + 1, pts.length - 1)];
+        const ghost = !!(a.interp || b.interp);
+        if (a === b || b.t <= a.t) return { x: a.x, y: a.y, ghost };
+        if (b.t - a.t > MAX_INTERP_GAP) return t - a.t < 0.25 ? { x: a.x, y: a.y, ghost } : null;
+        const f = (t - a.t) / (b.t - a.t);
+        return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, ghost };
+      }
+
+      function trailPoints(player, t, seconds) {
+        const from = t - seconds;
+        return player.pts.filter((p) => p.t >= from && p.t <= t);
+      }
+
+      // --- Render ---
+
+      function visiblePlayers() {
+        const showRefs = showRefsInput.checked;
+        return players.filter(
+          (p) => p.visible && (showRefs || p.raw.label !== "referee")
+        );
+      }
+
+      function drawTrail(player, pts, fade) {
+        if (pts.length < 2) return;
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        for (let i = 1; i < pts.length; i++) {
+          const pa = applyPlayerTransform(pts[i - 1].x, pts[i - 1].y);
+          const pb = applyPlayerTransform(pts[i].x, pts[i].y);
+          const a = toCanvas(pa.x, pa.y);
+          const b = toCanvas(pb.x, pb.y);
+          ctx.globalAlpha = fade ? 0.15 + 0.65 * (i / pts.length) : 0.55;
+          ctx.strokeStyle = player.color;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function drawDot(player, pos) {
+        const tp = applyPlayerTransform(pos.x, pos.y);
+        const p = toCanvas(tp.x, tp.y);
+        const r = 9;
+        // Ghost = interpolated position while the player is out of sight.
+        if (pos.ghost) {
+          ctx.globalAlpha = 0.45;
+          ctx.setLineDash([3, 3]);
+        }
+        ctx.fillStyle = player.color;
+        ctx.strokeStyle = "rgba(0,0,0,0.6)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#0b0f14";
+        ctx.font = "700 9px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const text = player.raw.jerseyNumber ?? "";
+        if (text) {
+          ctx.fillText(text, p.x, p.y + 0.5);
+        }
+        ctx.fillStyle = player.color;
+        ctx.font = "600 10px system-ui, sans-serif";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(player.label, p.x, p.y - r - 3);
+        ctx.globalAlpha = 1;
+      }
+
+      function draw() {
+        if (!data) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          return;
+        }
+        const cssW = canvas.width / (window.devicePixelRatio || 1);
+        const cssH = canvas.height / (window.devicePixelRatio || 1);
+        ctx.clearRect(0, 0, cssW, cssH);
+        drawCourt();
+
+        const mode = modeSelect.value;
+        const trailSec = Number(trailSecInput.value);
+
+        for (const player of visiblePlayers()) {
+          if (mode === "trails") {
+            drawTrail(player, player.pts, false);
+            const last = player.pts[player.pts.length - 1];
+            drawDot(player, last);
+          } else {
+            if (trailSec > 0) drawTrail(player, trailPoints(player, currentT, trailSec), true);
+            const pos = positionAt(player, currentT);
+            if (pos) drawDot(player, pos);
+          }
+        }
+
+        timeLabel.textContent = `${currentT.toFixed(1)} / ${tMax.toFixed(1)}s`;
+        if (!timeline.matches(":active")) {
+          timeline.value = String(currentT);
+        }
+      }
+
+      // --- Playback loop ---
+
+      function tick(now) {
+        if (playing) {
+          if (lastTick != null) {
+            currentT += ((now - lastTick) / 1000) * Number(speedSelect.value);
+            if (currentT >= tMax) {
+              currentT = tMin; // loop the play
+            }
+          }
+          lastTick = now;
+          draw();
+        } else {
+          lastTick = null;
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+
+      playBtn.addEventListener("click", () => {
+        playing = !playing;
+        playBtn.textContent = playing ? "Pause" : "Play";
+        if (playing && modeSelect.value === "trails") {
+          modeSelect.value = "replay";
+        }
+      });
+
+      timeline.addEventListener("input", () => {
+        currentT = Number(timeline.value);
+        draw();
+      });
+
+      speedSelect.addEventListener("change", draw);
+      modeSelect.addEventListener("change", () => {
+        if (modeSelect.value === "trails") {
+          playing = false;
+          playBtn.textContent = "Play";
+        }
+        draw();
+      });
+      trailSecInput.addEventListener("input", () => {
+        trailSecLabel.textContent = Number(trailSecInput.value).toFixed(1);
+        draw();
+      });
+      showRefsInput.addEventListener("change", draw);
+
+      // --- Adjust mode ---
+
+      function readAdjustFromControls() {
+        adjust.rotationDeg = Number(adjRot.value);
+        adjust.scale = Number(adjScale.value);
+        adjust.tx = Number(adjTx.value) || 0;
+        adjust.ty = Number(adjTy.value) || 0;
+        adjust.flipX = adjFlipX.checked;
+        syncAdjustControls();
+        draw();
+      }
+
+      adjustModeInput.addEventListener("change", () => {
+        adjustMode = adjustModeInput.checked;
+        canvas.classList.toggle("adjusting", adjustMode);
+        if (adjustMode) {
+          playing = false;
+          playBtn.textContent = "Play";
+        }
+      });
+      adjRot.addEventListener("input", readAdjustFromControls);
+      adjScale.addEventListener("input", readAdjustFromControls);
+      adjTx.addEventListener("change", readAdjustFromControls);
+      adjTy.addEventListener("change", readAdjustFromControls);
+      adjFlipX.addEventListener("change", readAdjustFromControls);
+
+      document.getElementById("adj-reset").addEventListener("click", () => {
+        adjust = { tx: 0, ty: 0, rotationDeg: 0, scale: 1, flipX: false };
+        syncAdjustControls();
+        draw();
+      });
+
+      document.getElementById("adj-export").addEventListener("click", () => {
+        if (!data) {
+          alert("Load player_movement.json first.");
+          return;
+        }
+        const blob = new Blob([JSON.stringify(buildAdjustArtifact(), null, 2)], {
+          type: "application/json",
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "court_adjust.json";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+
+      canvas.addEventListener("pointerdown", (event) => {
+        if (!adjustMode || !data) return;
+        const bounds = canvas.getBoundingClientRect();
+        const x = ((event.clientX - bounds.left) / bounds.width) * (canvas.width / (window.devicePixelRatio || 1));
+        const y = ((event.clientY - bounds.top) / bounds.height) * (canvas.height / (window.devicePixelRatio || 1));
+        const courtPt = canvasToCourt(x, y);
+        dragStart = { x: courtPt.x, y: courtPt.y, tx: adjust.tx, ty: adjust.ty };
+        canvas.setPointerCapture(event.pointerId);
+      });
+
+      canvas.addEventListener("pointermove", (event) => {
+        if (!dragStart) return;
+        const bounds = canvas.getBoundingClientRect();
+        const x = ((event.clientX - bounds.left) / bounds.width) * (canvas.width / (window.devicePixelRatio || 1));
+        const y = ((event.clientY - bounds.top) / bounds.height) * (canvas.height / (window.devicePixelRatio || 1));
+        const courtPt = canvasToCourt(x, y);
+        adjust.tx = dragStart.tx + (courtPt.x - dragStart.x);
+        adjust.ty = dragStart.ty + (courtPt.y - dragStart.y);
+        syncAdjustControls();
+        draw();
+      });
+
+      function endDrag() {
+        dragStart = null;
+      }
+      canvas.addEventListener("pointerup", endDrag);
+      canvas.addEventListener("pointercancel", endDrag);
+
+      syncAdjustControls();
+
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+        draw();
+      });
+
+      resizeCanvas();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,87 @@
+{
+  "format": "court-calibration-v1",
+  "source": "manual",
+  "clipKey": "sbl.mp4",
+  "updatedAt": "2026-08-13T09:51:06.932Z",
+  "court": {
+    "layout": "half",
+    "length": 15,
+    "width": 14,
+    "unit": "m",
+    "preset": "fibaHalf"
+  },
+  "points": [
+    {
+      "id": "corner-lt",
+      "label": "Baseline x left sideline",
+      "court": {
+        "x": 0,
+        "y": 0
+      },
+      "pixel": {
+        "x": 0.4198038289835165,
+        "y": 0.5836106489184693
+      }
+    },
+    {
+      "id": "paint-base-l",
+      "label": "Paint x baseline (left)",
+      "court": {
+        "x": 5.05,
+        "y": 0
+      },
+      "pixel": {
+        "x": 0.5852292239010989,
+        "y": 0.6391430948419301
+      }
+    },
+    {
+      "id": "paint-base-r",
+      "label": "Paint x baseline (right)",
+      "court": {
+        "x": 9.95,
+        "y": 0
+      },
+      "pixel": {
+        "x": 0.7646591689560439,
+        "y": 0.7018718801996672
+      }
+    },
+    {
+      "id": "paint-ft-l",
+      "label": "Free-throw corner (left)",
+      "court": {
+        "x": 5.05,
+        "y": 5.8
+      },
+      "pixel": {
+        "x": 0.28954541552197804,
+        "y": 0.7651206322795341
+      }
+    },
+    {
+      "id": "paint-ft-r",
+      "label": "Free-throw corner (right)",
+      "court": {
+        "x": 9.95,
+        "y": 5.8
+      },
+      "pixel": {
+        "x": 0.5000643887362637,
+        "y": 0.9130615640599001
+      }
+    },
+    {
+      "id": "arc-top",
+      "label": "Top of 3pt / 2pt arc",
+      "court": {
+        "x": 7.5,
+        "y": 8.325
+      },
+      "pixel": {
+        "x": 0.22488839285714285,
+        "y": 0.915869384359401
+      }
+    }
+  ]
+}
