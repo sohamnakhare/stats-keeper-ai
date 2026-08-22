@@ -424,6 +424,8 @@ python worker/scripts/train_court_model.py      # yolov8n-pose init, 100 epochs
 | Shot attempts | Rule engine on ball track |
 | Homography smooth | Hand-tuned EMA/hysteresis/ramp |
 
+**Step-by-step fine-tuning:** [FINETUNING.md](FINETUNING.md) — ball and court dataset prep, training commands, verification.
+
 ---
 
 ## Iteration history & known tradeoffs

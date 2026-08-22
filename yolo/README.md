@@ -176,6 +176,8 @@ Use the same `--max-width` as `detect_court.py` (default 1280). `--court-detect`
 
 **Models & design decisions:** [docs/MODELS_AND_DESIGN.md](docs/MODELS_AND_DESIGN.md) — every model, training path, and architectural rationale.
 
+**Fine-tuning (ball & court):** [docs/FINETUNING.md](docs/FINETUNING.md) — dataset requirements, prepare/train commands, verification.
+
 Options: `--model`, `--conf` (default 0.50), `--imgsz`, `--max-width`, `--preset` (`fibaHalf`, `nbaHalf`, `fiba3x3`, `fiba`, `nba`), `--keypoint-order`.
 
 ## Model
@@ -212,6 +214,7 @@ yolo/
   docs/
     PLAYER_MOVEMENT.md      # player tracking pipeline (comprehensive)
     MODELS_AND_DESIGN.md    # models, training, design decisions
+    FINETUNING.md           # ball & court fine-tuning guide
   .gitignore
   hoop-marker.html
   court-marker.html
