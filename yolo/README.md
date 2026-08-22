@@ -124,6 +124,60 @@ Options:
 
 Training artifacts land in `worker/models/runs/ball_finetune/`; the best checkpoint is copied to `worker/models/ball_finetuned_v1.pt`.
 
+## Train court pose model
+
+Roboflow **Court Detection V3** export is a YOLOv8 pose dataset (class `court` + 4 corner keypoints). Prepare a train/val split, then fine-tune `yolov8n-pose.pt`.
+
+```bash
+cd yolo && source .venv/bin/activate
+
+python worker/scripts/prepare_court_dataset.py
+python worker/scripts/train_court_model.py \
+  --data worker/models/court_dataset_prepared/data.local.yaml
+```
+
+Options:
+
+- `prepare_court_dataset.py --source` — Roboflow folder (default: `Court Detection V3.yolov8`)
+- `prepare_court_dataset.py --output` — prepared copy (default: `worker/models/court_dataset_prepared`)
+- `train_court_model.py --epochs`, `--imgsz`, `--batch`, `--device`, `--pretrained`
+
+Ultralytics downloads `yolov8n-pose.pt` if it is not already cached. Training artifacts land in `worker/models/runs/court_pose/`; the best checkpoint is copied to `worker/models/court_pose_v1.pt`.
+
+### Detect court (pose overlay + JSON)
+
+Requires `worker/models/court_pose_v1.pt` from training above.
+
+```bash
+cd yolo && source .venv/bin/activate
+python worker/scripts/detect_court.py new.mp4 \
+  --output worker/output/court_detect.mp4 \
+  --json worker/output/court_detect.json \
+  --preset fibaHalf \
+  --device mps
+```
+
+Detects the paint (D) keypoints, snaps them to floor-line edges, and overlays boundary, paint, 3pt/2pt arc, and rim. Low-confidence corners reuse the last good homography so the tilt does not drop out. Keypoints stay numbered 0–3.
+
+Keypoint order defaults to **0,1,2,3** = bottom-left, bottom-right, top-right, top-left (baseline pair then free-throw pair). If the overlay is mirrored, try `--keypoint-order 3,2,1,0` or `--keypoint-order auto`.
+
+Feed that JSON into player tracking so `player_movement.json` court meters follow zoom (static `court_calibration.json` does not):
+
+```bash
+python worker/scripts/track_players.py new.mp4 \
+  --court-detect worker/output/court_detect.json \
+  --kit-book kit_book.json \
+  --device mps
+```
+
+Use the same `--max-width` as `detect_court.py` (default 1280). `--court-detect` takes precedence over `--calibration`.
+
+**Full pipeline documentation:** [docs/PLAYER_MOVEMENT.md](docs/PLAYER_MOVEMENT.md) — architecture, per-point algorithm, homography smoothing, config reference, and troubleshooting.
+
+**Models & design decisions:** [docs/MODELS_AND_DESIGN.md](docs/MODELS_AND_DESIGN.md) — every model, training path, and architectural rationale.
+
+Options: `--model`, `--conf` (default 0.50), `--imgsz`, `--max-width`, `--preset` (`fibaHalf`, `nbaHalf`, `fiba3x3`, `fiba`, `nba`), `--keypoint-order`.
+
 ## Model
 
 Weights are **not** committed (see `.gitignore`). Download them after setup.
@@ -155,17 +209,34 @@ Hybrid pipelines (`--ball-model`) expect a local checkpoint such as `worker/mode
 yolo/
   requirements.txt
   README.md
+  docs/
+    PLAYER_MOVEMENT.md      # player tracking pipeline (comprehensive)
+    MODELS_AND_DESIGN.md    # models, training, design decisions
   .gitignore
   hoop-marker.html
+  court-marker.html
+  play-renderer.html
+  kit_book.json
   worker/
     main.py           # worker entrypoint
     detector.py
     tracker.py
     attempt_detector.py
     process_job.py
+    player_tracker.py
+    player_pose.py
+    court_projection.py
+    court_overlay.py
+    team_classifier.py
+    jersey_ocr.py
+    player_config.py
     hoop_roi.json
     models/           # weights downloaded / trained locally (.gitkeep only in git)
     scripts/
       download_model.py
+      prepare_court_dataset.py
+      train_court_model.py
+      detect_court.py
+      track_players.py
     output/           # run artifacts (gitignored; .gitkeep kept)
 ```

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Track player movement, team colors and jersey numbers -> player_movement.json.
 
-Pipeline: YOLO player detection -> ByteTrack -> homography to court meters
+Pipeline: YOLO player detection -> Deep OC-SORT -> homography to court meters
 -> team color classification -> selective jersey OCR -> track merging.
 
 Every stage is configurable via --config (JSON mirroring PipelineConfig);
@@ -14,16 +14,17 @@ import argparse
 import json
 import math
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 WORKER_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WORKER_ROOT))
 
-from court_projection import CourtProjector  # noqa: E402
+from court_projection import CourtProjector, PoseCourtProjector  # noqa: E402
 from detector import resolve_inference_device  # noqa: E402
 from jersey_ocr import JerseyOcrCollector  # noqa: E402
 from player_config import PipelineConfig, load_pipeline_config  # noqa: E402
+from player_pose import PlayerPoseEstimator, foot_xy_from_pose, match_pose  # noqa: E402
 from player_tracker import PlayerTracker  # noqa: E402
 from team_classifier import TeamClassifier  # noqa: E402
 
@@ -50,6 +51,8 @@ def apply_cli_overrides(config: PipelineConfig, args: argparse.Namespace) -> Pip
 
     if args.calibration is not None:
         config.homography.calibration_file = str(args.calibration)
+    if getattr(args, "court_detect", None) is not None:
+        config.homography.court_detect_file = str(args.court_detect)
 
     if args.min_track_points is not None:
         config.tracking.min_track_points = args.min_track_points
@@ -58,6 +61,12 @@ def apply_cli_overrides(config: PipelineConfig, args: argparse.Namespace) -> Pip
 
     if args.no_team:
         config.team.enabled = False
+    if getattr(args, "team_method", None):
+        config.team.method = args.team_method
+    if getattr(args, "kit_book", None) is not None:
+        config.team.kit_book_file = str(args.kit_book)
+    if getattr(args, "no_pose", False):
+        config.team.use_pose = False
     if args.no_ocr:
         config.jersey_ocr.enabled = False
     if args.ocr_gpu:
@@ -71,6 +80,8 @@ def apply_cli_overrides(config: PipelineConfig, args: argparse.Namespace) -> Pip
         config.merge.max_fill_gap_sec = max(config.merge.max_fill_gap_sec, args.max_gap_sec)
     if getattr(args, "track_buffer", None) is not None:
         config.tracking.track_buffer = args.track_buffer
+    if getattr(args, "no_reid", False):
+        config.tracking.with_reid = False
 
     return config
 
@@ -144,7 +155,8 @@ def merge_tracks(players: list[dict], config: PipelineConfig) -> list[dict]:
 
         if not merge_cfg.allow_no_jersey:
             return None
-        if a.get("team") is None or a.get("team") != b.get("team"):
+        team_a, team_b = a.get("team"), b.get("team")
+        if team_a is not None and team_b is not None and team_a != team_b:
             return None
         # Conflicting jersey vs null is ok; both null needs color agreement when available.
         cdist = color_distance(a.get("jerseyColor"), b.get("jerseyColor"))
@@ -181,15 +193,23 @@ def merge_tracks(players: list[dict], config: PipelineConfig) -> list[dict]:
             )
         if target.get("jerseyColor") is None and player.get("jerseyColor") is not None:
             target["jerseyColor"] = player["jerseyColor"]
+        if target.get("team") is None and player.get("team") is not None:
+            target["team"] = player["team"]
     return merged
 
 
-def fill_track_gaps(players: list[dict], config: PipelineConfig) -> int:
+def fill_track_gaps(
+    players: list[dict],
+    config: PipelineConfig,
+    projector: CourtProjector | PoseCourtProjector | None = None,
+) -> int:
     """Insert interpolated points across detection gaps so players stay in play.
 
     Covers both occlusions within a track and joins created by merging.
     Interpolated points carry `"interpolated": true` so the renderer can draw
-    them as ghosts. Returns the number of points inserted.
+    them as ghosts. Court meters are re-projected at each timestamp when a
+    projector is available (lerping meters slides under a moving camera).
+    Returns the number of points inserted.
     """
     merge_cfg = config.merge
     if not merge_cfg.fill_gaps:
@@ -209,15 +229,25 @@ def fill_track_gaps(players: list[dict], config: PipelineConfig) -> int:
             steps = int(round(dt / step))
             for i in range(1, steps):
                 f = i / steps
-                has_court = prev["x"] is not None and nxt["x"] is not None
+                t = round(prev["t"] + f * dt, 3)
+                px = round(prev["px"] + f * (nxt["px"] - prev["px"]), 4)
+                py = round(prev["py"] + f * (nxt["py"] - prev["py"]), 4)
+                court_xy = None
+                if projector is not None:
+                    court_xy = projector.project(px, py, t_sec=t)
+                elif prev["x"] is not None and nxt["x"] is not None:
+                    court_xy = (
+                        prev["x"] + f * (nxt["x"] - prev["x"]),
+                        prev["y"] + f * (nxt["y"] - prev["y"]),
+                    )
                 filled.append(
                     {
-                        "t": round(prev["t"] + f * dt, 3),
+                        "t": t,
                         "frame": int(round(prev["frame"] + f * (nxt["frame"] - prev["frame"]))),
-                        "px": round(prev["px"] + f * (nxt["px"] - prev["px"]), 4),
-                        "py": round(prev["py"] + f * (nxt["py"] - prev["py"]), 4),
-                        "x": round(prev["x"] + f * (nxt["x"] - prev["x"]), 2) if has_court else None,
-                        "y": round(prev["y"] + f * (nxt["y"] - prev["y"]), 2) if has_court else None,
+                        "px": px,
+                        "py": py,
+                        "x": round(court_xy[0], 2) if court_xy else None,
+                        "y": round(court_xy[1], 2) if court_xy else None,
                         "conf": None,
                         "interpolated": True,
                     }
@@ -251,7 +281,13 @@ def main() -> None:
         "--calibration",
         type=Path,
         default=None,
-        help="court_calibration.json from court-marker.html (enables court coordinates)",
+        help="court_calibration.json from court-marker.html (static; ignores zoom)",
+    )
+    parser.add_argument(
+        "--court-detect",
+        type=Path,
+        default=None,
+        help="court_detect.json from detect_court.py (per-frame D keypoints, zoom-aware)",
     )
     parser.add_argument("--model", type=Path, default=None, help="YOLO weights (E-BARD)")
     parser.add_argument("--device", default=None, help="Inference device (mps / cuda:0)")
@@ -282,6 +318,23 @@ def main() -> None:
         help="Also detect the referee class",
     )
     parser.add_argument("--no-team", action="store_true", help="Skip team classification")
+    parser.add_argument(
+        "--team-method",
+        choices=["dino", "color"],
+        default=None,
+        help="Team ID: jersey-color K-means (default) or DINOv2 torso embeddings",
+    )
+    parser.add_argument(
+        "--kit-book",
+        type=Path,
+        default=None,
+        help="kit_book.json with per-team example jersey crops (named team ids)",
+    )
+    parser.add_argument(
+        "--no-pose",
+        action="store_true",
+        help="Skip YOLO-pose torso crop; use the proportional chest rectangle",
+    )
     parser.add_argument("--no-ocr", action="store_true", help="Skip jersey number OCR")
     parser.add_argument("--ocr-gpu", action="store_true", help="Run PaddleOCR on GPU")
     parser.add_argument("--no-merge", action="store_true", help="Skip track merging")
@@ -300,7 +353,12 @@ def main() -> None:
         "--track-buffer",
         type=int,
         default=None,
-        help="ByteTrack frames to keep a lost ID alive (default 90)",
+        help="Frames to keep a lost ID alive (default 90)",
+    )
+    parser.add_argument(
+        "--no-reid",
+        action="store_true",
+        help="Disable Deep OC-SORT appearance ReID (motion + GMC only)",
     )
     args = parser.parse_args()
 
@@ -321,34 +379,92 @@ def main() -> None:
         sys.exit(1)
     print(f"Inference device: {device}", flush=True)
 
-    projector: CourtProjector | None = None
-    if config.homography.calibration_file:
-        projector = CourtProjector.from_calibration_file(
-            config.homography.calibration_file, config.homography
-        )
+    projector: CourtProjector | PoseCourtProjector | None = None
+    detect_file = config.homography.court_detect_file
+    calib_file = config.homography.calibration_file
+    if detect_file:
+        projector = PoseCourtProjector.from_detect_file(detect_file, config.homography)
         print(
-            f"Court calibration: {config.homography.calibration_file} "
+            f"Court detect (zoom-aware): {detect_file} "
+            f"({projector.court.length} x {projector.court.width} {projector.court.unit}"
+            f", preset={projector.court.preset})"
+        )
+        if calib_file:
+            print(f"Ignoring static calibration {calib_file} (court-detect takes precedence)")
+    elif calib_file:
+        projector = CourtProjector.from_calibration_file(calib_file, config.homography)
+        print(
+            f"Court calibration: {calib_file} "
             f"({projector.court.length} x {projector.court.width} {projector.court.unit})"
         )
     else:
         print("No calibration file: output will contain pixel coordinates only")
 
     tracker = PlayerTracker(config.detection, config.tracking)
-    team_classifier = TeamClassifier(config.team)
+    team_classifier = TeamClassifier(config.team, device=device)
     ocr_collector = JerseyOcrCollector(config.jersey_ocr)
+    pose_estimator: PlayerPoseEstimator | None = None
+    if config.team.enabled and config.team.use_pose:
+        try:
+            pose_estimator = PlayerPoseEstimator(config.team, device=device)
+            print(f"Player pose: {config.team.pose_model}", flush=True)
+        except Exception as exc:
+            print(f"Player pose unavailable ({exc}); using rectangle torso crop.", flush=True)
+            pose_estimator = None
 
     track_points: dict[int, list[dict]] = defaultdict(list)
     track_labels: dict[int, str] = {}
+    foot_ema: dict[int, tuple[float, float]] = {}
+    foot_alpha = config.detection.foot_ema_alpha
+    court_xy_ema: dict[int, tuple[float, float]] = {}
+    court_alpha = config.homography.court_xy_ema_alpha
     frame_count = 0
 
     print("Tracking players...", flush=True)
     for sampled, observations in tracker.iter_observations(str(args.video)):
         frame_count = sampled.index + 1
+        poses = pose_estimator.estimate(sampled.bgr) if pose_estimator else []
+        frame_h, frame_w = sampled.bgr.shape[:2]
         for obs in observations:
             if obs.label != "player":
                 continue
             track_labels[obs.track_id] = obs.label
-            court_xy = projector.project(obs.foot_x, obs.foot_y) if projector else None
+            pose = match_pose(obs, poses) if poses else None
+            foot = (
+                foot_xy_from_pose(
+                    obs, pose, (frame_w, frame_h), min_conf=config.team.pose_min_conf
+                )
+                if pose is not None
+                else None
+            )
+            raw_x, raw_y = foot if foot is not None else (obs.foot_x, obs.foot_y)
+            prev = foot_ema.get(obs.track_id)
+            if prev is None or foot_alpha >= 1.0:
+                foot_x, foot_y = raw_x, raw_y
+            elif foot_alpha <= 0.0:
+                foot_x, foot_y = prev
+            else:
+                foot_x = foot_alpha * raw_x + (1.0 - foot_alpha) * prev[0]
+                foot_y = foot_alpha * raw_y + (1.0 - foot_alpha) * prev[1]
+            foot_ema[obs.track_id] = (foot_x, foot_y)
+            court_xy = (
+                projector.project(foot_x, foot_y, t_sec=obs.t_sec)
+                if projector
+                else None
+            )
+            if court_xy is not None:
+                prev_court = court_xy_ema.get(obs.track_id)
+                if prev_court is None or court_alpha >= 1.0:
+                    smoothed = court_xy
+                elif court_alpha <= 0.0:
+                    smoothed = prev_court
+                else:
+                    smoothed = (
+                        court_alpha * court_xy[0] + (1.0 - court_alpha) * prev_court[0],
+                        court_alpha * court_xy[1] + (1.0 - court_alpha) * prev_court[1],
+                    )
+                court_xy_ema[obs.track_id] = smoothed
+                court_xy = smoothed
             # When calibrated, ignore detections that don't land on the court
             # (cameramen / crowd / bench along the sideline).
             if projector is not None and court_xy is None:
@@ -357,14 +473,14 @@ def main() -> None:
                 {
                     "t": round(obs.t_sec, 3),
                     "frame": obs.frame,
-                    "px": round(obs.foot_x, 4),
-                    "py": round(obs.foot_y, 4),
+                    "px": round(foot_x, 4),
+                    "py": round(foot_y, 4),
                     "x": round(court_xy[0], 2) if court_xy else None,
                     "y": round(court_xy[1], 2) if court_xy else None,
                     "conf": round(obs.conf, 3),
                 }
             )
-            team_classifier.observe(sampled.bgr, obs)
+            team_classifier.observe(sampled.bgr, obs, pose=pose)
             ocr_collector.observe(sampled.bgr, obs)
         if sampled.index % 50 == 0:
             print(
@@ -379,7 +495,7 @@ def main() -> None:
     )
     print(f"Tracks: {len(track_points)} raw, {len(kept)} kept (players on court)")
 
-    print("Classifying teams...", flush=True)
+    print(f"Classifying teams ({config.team.method})...", flush=True)
     team_assignment = team_classifier.finalize()
 
     print("Running jersey OCR...", flush=True)
@@ -408,7 +524,7 @@ def main() -> None:
     if config.merge.enabled and before != len(players):
         print(f"Merged {before - len(players)} broken track(s)")
 
-    inserted = fill_track_gaps(players, config)
+    inserted = fill_track_gaps(players, config, projector=projector)
     if inserted:
         print(f"Gap fill: inserted {inserted} interpolated point(s)")
 
@@ -438,6 +554,14 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
     print(f"Wrote {args.output}")
+
+    team_counts = Counter(player["team"] or "?" for player in players)
+    print("Team split: " + ", ".join(f"{name}={n}" for name, n in sorted(team_counts.items())))
+    if artifact["teams"]:
+        print(
+            "Team colors: "
+            + ", ".join(f"{t['id']} rgb{tuple(t['color'])}" for t in artifact["teams"])
+        )
 
     for player in players:
         team = player["team"] or "?"

@@ -36,8 +36,12 @@ Thumbs.db
 **/models/.cache/
 
 # Training datasets & run artifacts
+Court Detection V3.yolov8/
+kits/
+kit_book.json
 **/models/Finetune*/
 **/models/ball_dataset*/
+**/models/court_dataset*/
 **/models/runs/
 runs/
 

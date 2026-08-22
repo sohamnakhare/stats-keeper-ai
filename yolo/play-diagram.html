@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Play diagram — movement + reconstruction</title>
+    <style>
+      :root {
+        --bg: #0f1419;
+        --panel: #1a2332;
+        --text: #e7ecf3;
+        --muted: #8b9cb3;
+        --accent: #22c55e;
+        --border: #2d3a4f;
+        --court-line: #5b708c;
+        --court-fill: #131c29;
+        --danger: #f87171;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+      }
+
+      header h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.125rem;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.875rem;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 1rem;
+        padding: 1rem;
+        align-items: start;
+      }
+
+      @media (max-width: 960px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .stage-wrap {
+        background: #000;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        padding: 0.75rem;
+      }
+
+      #court {
+        width: 100%;
+        display: block;
+        border-radius: 4px;
+        cursor: grab;
+      }
+
+      #court.adding {
+        cursor: crosshair;
+      }
+
+      #court.dragging {
+        cursor: grabbing;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      input[type="number"],
+      input[type="text"] {
+        width: 100%;
+        padding: 0.45rem 0.55rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: #0b1018;
+        color: var(--text);
+      }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        margin-top: 0.75rem;
+      }
+
+      .controls output {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        min-width: 5.5rem;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .controls input[type="range"] {
+        flex: 1;
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.875rem;
+      }
+
+      .card h2 {
+        margin: 0 0 0.625rem;
+        font-size: 0.8125rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+
+      label {
+        display: block;
+        font-size: 0.8125rem;
+        color: var(--muted);
+        margin-bottom: 0.25rem;
+      }
+
+      input[type="file"],
+      select,
+      button {
+        width: 100%;
+        font: inherit;
+      }
+
+      input[type="file"] {
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+
+      select {
+        padding: 0.45rem 0.55rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: #0b1018;
+        color: var(--text);
+      }
+
+      button {
+        border: 1px solid var(--border);
+        background: #243044;
+        color: var(--text);
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #2c3a52;
+      }
+
+      button.primary {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 25%, #243044);
+      }
+
+      button.danger {
+        border-color: var(--danger);
+      }
+
+      button.active {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 30%, #243044);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+      }
+
+      .row-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0.5rem;
+      }
+
+      .hint {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        line-height: 1.45;
+        margin: 0;
+      }
+
+      .stat-line {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        margin: 0.25rem 0 0;
+      }
+
+      .check {
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: var(--muted);
+        font-size: 0.8125rem;
+      }
+
+      .check input {
+        width: auto;
+        margin: 0;
+      }
+
+      #track-list,
+      #event-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        max-height: 240px;
+        overflow: auto;
+      }
+
+      .track-row,
+      .event-row {
+        display: grid;
+        gap: 0.35rem;
+        font-size: 0.75rem;
+        padding: 0.4rem;
+        border-radius: 6px;
+        background: #0b1018;
+        border: 1px solid var(--border);
+      }
+
+      .track-row {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .track-row.selected,
+      .player-chip.selected {
+        border-color: var(--accent);
+      }
+
+      .track-head {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        color: var(--text);
+      }
+
+      .track-head .meta {
+        margin-left: auto;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        flex: none;
+      }
+
+      .event-row {
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
+      .event-row strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .empty {
+        color: var(--muted);
+        font-size: 0.8125rem;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Play diagram</h1>
+      <p>
+        Load <code>player_movement.json</code> and a reconstruction. Offense is
+        circles, defense is <strong>X</strong>. Drag dots, add labels, export the
+        chalkboard.
+      </p>
+    </header>
+
+    <main>
+      <section class="stage-wrap">
+        <canvas id="court"></canvas>
+        <div class="controls">
+          <output id="time-label">No snapshot</output>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <div class="card">
+          <h2>Data</h2>
+          <label for="movement-file">player_movement.json</label>
+          <input id="movement-file" type="file" accept="application/json,.json" />
+          <label for="recon-file" style="margin-top: 0.625rem">reconstruction JSON</label>
+          <input id="recon-file" type="file" accept="application/json,.json" />
+          <label for="recon-pick" style="margin-top: 0.625rem">Reconstruction</label>
+          <select id="recon-pick" disabled>
+            <option value="">None loaded</option>
+          </select>
+          <p class="stat-line" id="data-info">No data loaded.</p>
+        </div>
+
+        <div class="card">
+          <h2>Snapshot</h2>
+          <label for="offense-team">Offense is team</label>
+          <select id="offense-team" disabled>
+            <option value="">Load movement first</option>
+          </select>
+          <label for="snap-t" style="margin-top: 0.625rem">
+            Time: <span id="snap-t-label">0.0</span>s
+          </label>
+          <input id="snap-t" type="range" min="0" max="0" step="0.01" value="0" disabled />
+          <label class="check">
+            <input type="checkbox" id="show-arrows" checked />
+            Show arrows / screen / pass
+          </label>
+          <label class="check">
+            <input type="checkbox" id="flip-shot-y" checked />
+            Flip shot-spot Y (0–100 → hoop at baseline)
+          </label>
+          <div class="row" style="margin-top: 0.625rem">
+            <button type="button" id="resnap-btn">Resnap unmoved</button>
+            <button type="button" id="resnap-all-btn">Resnap all</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Tracks</h2>
+          <p class="hint">Set side and optionally bind a reconstruction player.</p>
+          <div id="track-list"><p class="empty">Load movement to assign tracks.</p></div>
+        </div>
+
+        <div class="card">
+          <h2>Selected</h2>
+          <div id="inspector">
+            <p class="empty">Click a player on the court.</p>
+          </div>
+          <div class="row" style="margin-top: 0.625rem">
+            <button type="button" id="add-o">Add O</button>
+            <button type="button" id="add-x">Add X</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Events</h2>
+          <div id="event-list"><p class="empty">Load a reconstruction.</p></div>
+        </div>
+
+        <div class="card">
+          <h2>Export</h2>
+          <div class="row">
+            <button type="button" id="export-json" class="primary">JSON</button>
+            <button type="button" id="export-png">PNG</button>
+          </div>
+          <label for="import-file" style="margin-top: 0.625rem">Import play_diagram.json</label>
+          <input id="import-file" type="file" accept="application/json,.json" />
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      const canvas = document.getElementById("court");
+      const ctx = canvas.getContext("2d");
+      const dataInfo = document.getElementById("data-info");
+      const timeLabel = document.getElementById("time-label");
+      const offenseTeamSelect = document.getElementById("offense-team");
+      const snapT = document.getElementById("snap-t");
+      const snapTLabel = document.getElementById("snap-t-label");
+      const showArrowsInput = document.getElementById("show-arrows");
+      const flipShotYInput = document.getElementById("flip-shot-y");
+      const trackList = document.getElementById("track-list");
+      const inspector = document.getElementById("inspector");
+      const eventList = document.getElementById("event-list");
+      const reconPick = document.getElementById("recon-pick");
+      const addOBtn = document.getElementById("add-o");
+      const addXBtn = document.getElementById("add-x");
+
+      const OFFENSE_FILL = "#f8fafc";
+      const OFFENSE_STROKE = "#94a3b8";
+      const DEFENSE_X = "#f87171";
+      const BALL_FILL = "#f97316";
+      const SHOT_FILL = "#fb923c";
+      const ARROW_STROKE = "#e2e8f0";
+      const PASS_STROKE = "#38bdf8";
+      const SCREEN_STROKE = "#fbbf24";
+      const HIT_RADIUS_M = 0.85;
+      const DOT_R = 11;
+      const MAX_INTERP_GAP = 6.0;
+      const PAD = 30;
+
+      let movement = null;
+      let tracks = [];
+      let reconstructions = [];
+      let recon = null;
+      let courtLength = 15;
+      let courtWidth = 14;
+      let courtLayout = "half";
+      let pixelMode = false;
+      let tMin = 0;
+      let tMax = 0;
+      let snapshotT = 0;
+      let offenseTeam = "";
+      let nodes = [];
+      let shotMark = null;
+      let selectedId = null;
+      let addMode = null;
+      let drag = null;
+      let manualSeq = 0;
+      let suppressTeamChange = false;
+
+      function uid(prefix) {
+        return `${prefix}-${Date.now().toString(36)}-${++manualSeq}`;
+      }
+
+      function shortId(id) {
+        if (!id) return "";
+        return id.length > 12 ? `${id.slice(0, 8)}…` : id;
+      }
+
+      function collectReconPlayerIds(model) {
+        const roles = new Map();
+        const add = (id, role) => {
+          if (!id) return;
+          const list = roles.get(id) || [];
+          if (!list.includes(role)) list.push(role);
+          roles.set(id, list);
+        };
+        if (!model) return roles;
+        add(model.ballUpPlayerId, "ball up");
+        for (const ev of model.events || []) {
+          add(ev.primaryPlayerId, `seq ${ev.seq} ${ev.action || ""}`.trim());
+          add(ev.screenForPlayerId, `seq ${ev.seq} screen-for`);
+          add(ev.finalActionPlayerId, `seq ${ev.seq} ${ev.finalAction || "final"}`.trim());
+        }
+        return roles;
+      }
+
+      function reconPlayerOptions() {
+        const roles = collectReconPlayerIds(recon?.possessionModel);
+        return [...roles.entries()].map(([id, list]) => ({
+          id,
+          label: `${shortId(id)} (${list.join(", ")})`,
+        }));
+      }
+
+      function parseReconstructionPayload(parsed) {
+        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed.reconstructions)) return parsed.reconstructions;
+        if (parsed.possessionModel || parsed.playType || parsed.id) return [parsed];
+        return [];
+      }
+
+      function loadMovement(parsed) {
+        movement = parsed;
+        courtLength = parsed.court?.length ?? 28;
+        courtWidth = parsed.court?.width ?? 15;
+        const layout = parsed.court?.layout;
+        courtLayout = layout === "half" || layout === "full" ? layout : courtLength < 20 ? "half" : "full";
+
+        const rawPlayers = parsed.players || [];
+        pixelMode = !parsed.court || !rawPlayers.some((p) => p.points?.some((pt) => pt.x != null));
+
+        tracks = rawPlayers
+          .map((raw) => {
+            const pts = (raw.points || [])
+              .filter((pt) => (pixelMode ? pt.px != null : pt.x != null))
+              .map((pt) => ({
+                t: pt.t,
+                x: pixelMode ? pt.px * courtLength : pt.x,
+                y: pixelMode ? pt.py * courtWidth : pt.y,
+                interp: !!pt.interpolated,
+              }))
+              .sort((a, b) => a.t - b.t);
+            return {
+              trackId: raw.trackId,
+              team: raw.team ?? null,
+              jerseyNumber: raw.jerseyNumber ?? null,
+              label: raw.label || "player",
+              tMin: pts.length ? pts[0].t : 0,
+              tMax: pts.length ? pts[pts.length - 1].t : 0,
+              pts,
+            };
+          })
+          .filter((t) => t.pts.length >= 1 && t.label !== "referee");
+
+        tMin = tracks.length ? Math.min(...tracks.map((t) => t.tMin)) : 0;
+        tMax = tracks.length ? Math.max(...tracks.map((t) => t.tMax)) : 0;
+        snapshotT = defaultSnapshotT();
+
+        const teams = [...new Set(tracks.map((t) => t.team).filter(Boolean))];
+        suppressTeamChange = true;
+        offenseTeamSelect.innerHTML = "";
+        if (!teams.length) {
+          teams.push("A", "B");
+        }
+        for (const team of teams) {
+          const opt = document.createElement("option");
+          opt.value = team;
+          opt.textContent = team;
+          offenseTeamSelect.appendChild(opt);
+        }
+        offenseTeam = teams[0] || "A";
+        offenseTeamSelect.value = offenseTeam;
+        offenseTeamSelect.disabled = false;
+        suppressTeamChange = false;
+
+        snapT.min = String(tMin);
+        snapT.max = String(tMax);
+        snapT.step = "0.01";
+        snapT.value = String(snapshotT);
+        snapT.disabled = false;
+        snapTLabel.textContent = snapshotT.toFixed(2);
+
+        rebuildNodesFromTracks({ keepMoved: false });
+        placeShotMark();
+        updateDataInfo();
+        renderTrackList();
+        renderInspector();
+        resizeCanvas();
+        draw();
+      }
+
+      function defaultSnapshotT() {
+        if (!tracks.length) return 0;
+        const times = [...new Set(tracks.flatMap((t) => t.pts.map((p) => p.t)))].sort((a, b) => a - b);
+        let best = times[0];
+        let bestCount = -1;
+        for (const t of times) {
+          const count = tracks.filter((tr) => positionAt(tr, t)).length;
+          if (count > bestCount) {
+            bestCount = count;
+            best = t;
+          }
+        }
+        return best;
+      }
+
+      function positionAt(player, t) {
+        const pts = player.pts;
+        if (!pts.length) return null;
+        if (t < player.tMin - 0.001 || t > player.tMax + 0.001) return null;
+        let lo = 0;
+        let hi = pts.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >> 1;
+          if (pts[mid].t <= t) lo = mid;
+          else hi = mid - 1;
+        }
+        const a = pts[lo];
+        const b = pts[Math.min(lo + 1, pts.length - 1)];
+        if (a === b || b.t <= a.t) return { x: a.x, y: a.y, ghost: !!a.interp };
+        if (b.t - a.t > MAX_INTERP_GAP) return t - a.t < 0.25 ? { x: a.x, y: a.y, ghost: !!a.interp } : null;
+        const f = (t - a.t) / (b.t - a.t);
+        return {
+          x: a.x + (b.x - a.x) * f,
+          y: a.y + (b.y - a.y) * f,
+          ghost: !!(a.interp || b.interp),
+        };
+      }
+
+      function kitRgb(team) {
+        const entry = (movement?.teams || []).find((t) => t.id === team);
+        if (!entry || !Array.isArray(entry.color) || entry.color.length !== 3) return null;
+        return entry.color;
+      }
+
+      function kitCss(team) {
+        const rgb = kitRgb(team);
+        if (!rgb) return null;
+        return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+      }
+
+      function sideForTrack(track) {
+        if (!offenseTeam || track.team == null) return "offense";
+        return track.team === offenseTeam ? "offense" : "defense";
+      }
+
+      function rebuildNodesFromTracks({ keepMoved }) {
+        const prev = new Map(nodes.filter((n) => n.trackId != null).map((n) => [n.trackId, n]));
+        const manuals = keepMoved ? nodes.filter((n) => n.trackId == null) : [];
+        const next = [];
+        for (const track of tracks) {
+          const old = prev.get(track.trackId);
+          const pos = positionAt(track, snapshotT) || { x: track.pts[0].x, y: track.pts[0].y };
+          if (keepMoved && old?.moved) {
+            next.push(old);
+            continue;
+          }
+          next.push({
+            id: old?.id || `track-${track.trackId}`,
+            trackId: track.trackId,
+            side: old?.sideLocked ? old.side : sideForTrack(track),
+            sideLocked: !!old?.sideLocked,
+            hidden: old ? old.hidden : false,
+            x: pos.x,
+            y: pos.y,
+            number: old?.number ?? track.jerseyNumber ?? null,
+            label: old?.label ?? "",
+            reconPlayerId: old?.reconPlayerId ?? null,
+            hasBall: old?.hasBall ?? false,
+            moved: false,
+          });
+        }
+        nodes = next.concat(manuals);
+        syncBallFromRecon();
+      }
+
+      function applyOffenseTeam(team) {
+        offenseTeam = team;
+        for (const node of nodes) {
+          if (node.trackId == null || node.sideLocked) continue;
+          const track = tracks.find((t) => t.trackId === node.trackId);
+          if (!track) continue;
+          node.side = sideForTrack(track);
+        }
+        renderTrackList();
+        renderInspector();
+        draw();
+      }
+
+      function syncBallFromRecon() {
+        const ballId = recon?.possessionModel?.ballUpPlayerId;
+        if (!ballId) return;
+        for (const node of nodes) {
+          if (node.reconPlayerId === ballId) node.hasBall = true;
+        }
+      }
+
+      function shotSpotToCourt(spot) {
+        if (!spot || spot.x == null || spot.y == null) return null;
+        const x = Number(spot.x);
+        const y = Number(spot.y);
+        const percent =
+          x >= 0 &&
+          y >= 0 &&
+          x <= 100 &&
+          y <= 100 &&
+          (x > courtLength || y > courtWidth);
+        let cx;
+        let cy;
+        if (percent) {
+          cx = (x / 100) * courtLength;
+          cy = (y / 100) * courtWidth;
+        } else {
+          cx = x;
+          cy = y;
+        }
+        if (flipShotYInput.checked) cy = courtWidth - cy;
+        return { x: cx, y: cy, source: percent ? "percent" : "meters" };
+      }
+
+      function placeShotMark() {
+        const spot = recon?.possessionModel?.shotSpot;
+        const mapped = shotSpotToCourt(spot);
+        if (!mapped) {
+          shotMark = null;
+          return;
+        }
+        shotMark = { ...mapped, moved: shotMark?.moved || false };
+      }
+
+      function setReconstruction(item) {
+        recon = item || null;
+        placeShotMark();
+        syncBallFromRecon();
+        renderEventList();
+        renderTrackList();
+        renderInspector();
+        updateDataInfo();
+        draw();
+      }
+
+      function loadReconstructions(parsed) {
+        reconstructions = parseReconstructionPayload(parsed);
+        reconPick.innerHTML = "";
+        if (!reconstructions.length) {
+          reconPick.disabled = true;
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "No reconstruction found";
+          reconPick.appendChild(opt);
+          setReconstruction(null);
+          return;
+        }
+        reconPick.disabled = false;
+        reconstructions.forEach((item, index) => {
+          const opt = document.createElement("option");
+          opt.value = String(index);
+          const label = item.playType || item.id || `Reconstruction ${index + 1}`;
+          opt.textContent = `${index + 1}. ${label}`;
+          reconPick.appendChild(opt);
+        });
+        reconPick.value = "0";
+        setReconstruction(reconstructions[0]);
+      }
+
+      function updateDataInfo() {
+        const bits = [];
+        if (movement) {
+          bits.push(`${tracks.length} tracks`);
+          bits.push(`${(tMax - tMin).toFixed(1)}s`);
+          bits.push(pixelMode ? "pixel mode" : `${courtLayout} ${courtLength}×${courtWidth}m`);
+        }
+        if (recon) {
+          bits.push(recon.playType || "play");
+          const outcome = recon.possessionModel?.outcome;
+          if (outcome) bits.push(outcome);
+        }
+        dataInfo.textContent = bits.length ? bits.join(" — ") : "No data loaded.";
+      }
+
+      function renderTrackList() {
+        const options = reconPlayerOptions();
+        if (!tracks.length) {
+          trackList.innerHTML = '<p class="empty">Load movement to assign tracks.</p>';
+          return;
+        }
+        trackList.innerHTML = "";
+        for (const track of tracks) {
+          const node = nodes.find((n) => n.trackId === track.trackId);
+          if (!node) continue;
+          const row = document.createElement("div");
+          row.className = "track-row" + (selectedId === node.id ? " selected" : "");
+          row.innerHTML = `
+            <div class="track-head">
+              <span class="swatch" style="background:${kitCss(track.team) || "#64748b"}"></span>
+              <span>T${track.trackId}${track.jerseyNumber != null ? " #" + track.jerseyNumber : ""} ${track.team || ""}</span>
+              <span class="meta">${track.pts.length} pts</span>
+            </div>
+          `;
+          const side = document.createElement("select");
+          for (const [value, label] of [
+            ["offense", "Offense (O)"],
+            ["defense", "Defense (X)"],
+            ["hide", "Hide"],
+          ]) {
+            const opt = document.createElement("option");
+            opt.value = value;
+            opt.textContent = label;
+            side.appendChild(opt);
+          }
+          side.value = node.hidden ? "hide" : node.side;
+          side.addEventListener("change", () => {
+            if (side.value === "hide") {
+              node.hidden = true;
+            } else {
+              node.hidden = false;
+              node.side = side.value;
+              node.sideLocked = true;
+            }
+            renderInspector();
+            draw();
+          });
+          const bind = document.createElement("select");
+          const none = document.createElement("option");
+          none.value = "";
+          none.textContent = "No recon player";
+          bind.appendChild(none);
+          for (const optData of options) {
+            const opt = document.createElement("option");
+            opt.value = optData.id;
+            opt.textContent = optData.label;
+            bind.appendChild(opt);
+          }
+          bind.value = node.reconPlayerId || "";
+          bind.addEventListener("change", () => {
+            node.reconPlayerId = bind.value || null;
+            if (node.reconPlayerId && node.reconPlayerId === recon?.possessionModel?.ballUpPlayerId) {
+              node.hasBall = true;
+            }
+            renderInspector();
+            draw();
+          });
+          row.append(side, bind);
+          row.addEventListener("click", (event) => {
+            if (event.target.tagName === "SELECT") return;
+            selectedId = node.id;
+            renderTrackList();
+            renderInspector();
+            draw();
+          });
+          trackList.appendChild(row);
+        }
+      }
+
+      function renderInspector() {
+        const node = nodes.find((n) => n.id === selectedId);
+        if (!node) {
+          inspector.innerHTML = '<p class="empty">Click a player on the court.</p>';
+          return;
+        }
+        const options = reconPlayerOptions();
+        inspector.innerHTML = "";
+
+        const numLabel = document.createElement("label");
+        numLabel.textContent = "Number";
+        const num = document.createElement("input");
+        num.type = "text";
+        num.value = node.number == null ? "" : String(node.number);
+        num.addEventListener("input", () => {
+          node.number = num.value.trim() === "" ? null : num.value.trim();
+          draw();
+        });
+
+        const labLabel = document.createElement("label");
+        labLabel.textContent = "Label / info";
+        labLabel.style.marginTop = "0.5rem";
+        const lab = document.createElement("input");
+        lab.type = "text";
+        lab.placeholder = "name, role, hedge…";
+        lab.value = node.label || "";
+        lab.addEventListener("input", () => {
+          node.label = lab.value;
+          draw();
+        });
+
+        const sideLabel = document.createElement("label");
+        sideLabel.textContent = "Side";
+        sideLabel.style.marginTop = "0.5rem";
+        const side = document.createElement("select");
+        side.innerHTML = '<option value="offense">Offense (O)</option><option value="defense">Defense (X)</option>';
+        side.value = node.side;
+        side.addEventListener("change", () => {
+          node.side = side.value;
+          node.sideLocked = true;
+          node.hidden = false;
+          renderTrackList();
+          draw();
+        });
+
+        const bindLabel = document.createElement("label");
+        bindLabel.textContent = "Reconstruction player";
+        bindLabel.style.marginTop = "0.5rem";
+        const bind = document.createElement("select");
+        bind.innerHTML = '<option value="">None</option>';
+        for (const optData of options) {
+          const opt = document.createElement("option");
+          opt.value = optData.id;
+          opt.textContent = optData.label;
+          bind.appendChild(opt);
+        }
+        bind.value = node.reconPlayerId || "";
+        bind.addEventListener("change", () => {
+          node.reconPlayerId = bind.value || null;
+          if (node.reconPlayerId && node.reconPlayerId === recon?.possessionModel?.ballUpPlayerId) {
+            node.hasBall = true;
+          }
+          renderTrackList();
+          draw();
+        });
+
+        const ball = document.createElement("label");
+        ball.className = "check";
+        ball.innerHTML = "<input type='checkbox' /> Has ball";
+        ball.querySelector("input").checked = !!node.hasBall;
+        ball.querySelector("input").addEventListener("change", (event) => {
+          node.hasBall = event.target.checked;
+          draw();
+        });
+
+        inspector.append(numLabel, num, labLabel, lab, sideLabel, side, bindLabel, bind, ball);
+
+        if (node.trackId == null) {
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "danger";
+          del.textContent = "Remove";
+          del.style.marginTop = "0.625rem";
+          del.addEventListener("click", () => {
+            nodes = nodes.filter((n) => n.id !== node.id);
+            selectedId = null;
+            renderInspector();
+            draw();
+          });
+          inspector.appendChild(del);
+        } else {
+          const meta = document.createElement("p");
+          meta.className = "stat-line";
+          meta.textContent = `Track ${node.trackId}${node.moved ? " (moved)" : ""}`;
+          inspector.appendChild(meta);
+        }
+      }
+
+      function renderEventList() {
+        const events = recon?.possessionModel?.events || [];
+        if (!recon) {
+          eventList.innerHTML = '<p class="empty">Load a reconstruction.</p>';
+          return;
+        }
+        eventList.innerHTML = "";
+        const head = document.createElement("div");
+        head.className = "event-row";
+        const pm = recon.possessionModel || {};
+        head.innerHTML = `<strong>${recon.playType || "play"}</strong> · ${pm.phase || ""} · ${pm.outcome || ""}${
+          pm.points != null ? " " + pm.points + " pts" : ""
+        }`;
+        eventList.appendChild(head);
+        if (!events.length) {
+          const empty = document.createElement("p");
+          empty.className = "empty";
+          empty.textContent = "No events.";
+          eventList.appendChild(empty);
+          return;
+        }
+        for (const ev of events) {
+          const row = document.createElement("div");
+          row.className = "event-row";
+          const bits = [
+            ev.action,
+            ev.technique,
+            ev.situation,
+            ev.defensiveResponse && `D: ${ev.defensiveResponse}`,
+            ev.finalAction,
+          ].filter(Boolean);
+          row.innerHTML = `<strong>${ev.seq}.</strong> ${bits.join(" · ")}`;
+          eventList.appendChild(row);
+        }
+      }
+
+      function visibleNodes() {
+        return nodes.filter((n) => !n.hidden);
+      }
+
+      function nodeByReconId(id) {
+        if (!id) return null;
+        return visibleNodes().find((n) => n.reconPlayerId === id) || null;
+      }
+
+      function trackById(trackId) {
+        return tracks.find((t) => t.trackId === trackId) || null;
+      }
+
+      function perpendicular(dx, dy) {
+        const len = Math.hypot(dx, dy) || 1;
+        return { x: -dy / len, y: dx / len };
+      }
+
+      function rdp(points, epsilon) {
+        if (points.length < 3) return points.slice();
+        const first = points[0];
+        const last = points[points.length - 1];
+        let maxDist = -1;
+        let index = -1;
+        const vx = last.x - first.x;
+        const vy = last.y - first.y;
+        const vlen = Math.hypot(vx, vy) || 1;
+        for (let i = 1; i < points.length - 1; i++) {
+          const px = points[i].x - first.x;
+          const py = points[i].y - first.y;
+          const dist = Math.abs(vx * py - vy * px) / vlen;
+          if (dist > maxDist) {
+            maxDist = dist;
+            index = i;
+          }
+        }
+        if (maxDist > epsilon && index > 0) {
+          const left = rdp(points.slice(0, index + 1), epsilon);
+          const right = rdp(points.slice(index), epsilon);
+          return left.slice(0, -1).concat(right);
+        }
+        return [first, last];
+      }
+
+      function closestApproach(screenerPts, handlerPts) {
+        let best = Infinity;
+        let bestS = null;
+        let bestH = null;
+        for (const s of screenerPts) {
+          const fake = { pts: handlerPts, tMin: handlerPts[0]?.t ?? 0, tMax: handlerPts[handlerPts.length - 1]?.t ?? 0 };
+          const h = positionAt(fake, s.t);
+          if (!h) continue;
+          const d = Math.hypot(s.x - h.x, s.y - h.y);
+          if (d < best) {
+            best = d;
+            bestS = s;
+            bestH = h;
+          }
+        }
+        if (!bestS) return null;
+        return { screener: bestS, handler: bestH, dist: best };
+      }
+
+      function resizeCanvas() {
+        const wrap = canvas.parentElement;
+        const cssWidth = wrap.clientWidth - 24;
+        const aspect = (courtWidth + 2) / (courtLength + 2);
+        const cssHeight = Math.max(280, cssWidth * aspect);
+        const dpr = window.devicePixelRatio || 1;
+        canvas.style.width = cssWidth + "px";
+        canvas.style.height = cssHeight + "px";
+        canvas.width = Math.round(cssWidth * dpr);
+        canvas.height = Math.round(cssHeight * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function scale() {
+        const cssW = canvas.width / (window.devicePixelRatio || 1);
+        const cssH = canvas.height / (window.devicePixelRatio || 1);
+        return Math.min((cssW - PAD * 2) / courtLength, (cssH - PAD * 2) / courtWidth);
+      }
+
+      function toCanvas(x, y) {
+        const s = scale();
+        const cssW = canvas.width / (window.devicePixelRatio || 1);
+        const cssH = canvas.height / (window.devicePixelRatio || 1);
+        const ox = (cssW - courtLength * s) / 2;
+        const oy = (cssH - courtWidth * s) / 2;
+        return { x: ox + x * s, y: oy + y * s };
+      }
+
+      function canvasToCourt(canvasX, canvasY) {
+        const s = scale();
+        const cssW = canvas.width / (window.devicePixelRatio || 1);
+        const cssH = canvas.height / (window.devicePixelRatio || 1);
+        const ox = (cssW - courtLength * s) / 2;
+        const oy = (cssH - courtWidth * s) / 2;
+        return { x: (canvasX - ox) / s, y: (canvasY - oy) / s };
+      }
+
+      function eventCanvasPoint(event) {
+        const bounds = canvas.getBoundingClientRect();
+        const x = ((event.clientX - bounds.left) / bounds.width) * (canvas.width / (window.devicePixelRatio || 1));
+        const y = ((event.clientY - bounds.top) / bounds.height) * (canvas.height / (window.devicePixelRatio || 1));
+        return { x, y, court: canvasToCourt(x, y) };
+      }
+
+      function drawCourt() {
+        const s = scale();
+        const style = getComputedStyle(document.documentElement);
+        const line = style.getPropertyValue("--court-line").trim() || "#5b708c";
+        const fill = style.getPropertyValue("--court-fill").trim() || "#131c29";
+
+        const tl = toCanvas(0, 0);
+        ctx.fillStyle = fill;
+        ctx.fillRect(tl.x, tl.y, courtLength * s, courtWidth * s);
+        ctx.strokeStyle = line;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(tl.x, tl.y, courtLength * s, courtWidth * s);
+
+        if (pixelMode) return;
+
+        if (courtLayout === "half") {
+          const isNba = courtLength > 15.2 || courtWidth > 14.2;
+          const k = courtLength / 15;
+          const paintW = isNba ? 4.88 : 4.9 * k;
+          const ftDist = isNba ? 5.79 : 5.8 * k;
+          const rimDist = isNba ? 1.575 : 1.575 * k;
+          const arcR = isNba ? 7.24 : 6.75 * k;
+          const circleR = 1.8 * k;
+          const midX = courtLength / 2;
+
+          const p = toCanvas(midX - paintW / 2, 0);
+          ctx.strokeRect(p.x, p.y, paintW * s, ftDist * s);
+
+          const ftC = toCanvas(midX, ftDist);
+          ctx.beginPath();
+          ctx.arc(ftC.x, ftC.y, circleR * s, 0, Math.PI);
+          ctx.stroke();
+
+          const rim = toCanvas(midX, rimDist);
+          ctx.beginPath();
+          ctx.arc(rim.x, rim.y, 0.35 * s, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(rim.x, rim.y, 1.25 * k * s, 0, Math.PI);
+          ctx.stroke();
+
+          const cornerX = (isNba ? 0.91 : 0.9) * k;
+          const cosEnd = (midX - cornerX) / arcR;
+          const endAngle = Math.acos(Math.min(1, cosEnd));
+          ctx.beginPath();
+          ctx.arc(rim.x, rim.y, arcR * s, endAngle, Math.PI - endAngle);
+          ctx.stroke();
+          for (const cx of [cornerX, courtLength - cornerX]) {
+            const yEnd = rimDist + arcR * Math.sin(endAngle);
+            const a = toCanvas(cx, 0);
+            const b = toCanvas(cx, Math.min(yEnd, courtWidth));
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+          return;
+        }
+
+        const isNba = courtLength > 28.3;
+        const paintW = isNba ? 4.88 : (courtWidth / 15) * 4.9;
+        const ftDist = isNba ? 5.79 : (courtLength / 28) * 5.8;
+        const rimDist = isNba ? 1.6 : (courtLength / 28) * 1.575;
+        const arcR = isNba ? 7.24 : (courtLength / 28) * 6.75;
+        const cornerY = isNba ? 0.91 : (courtWidth / 15) * 0.9;
+        const circleR = 1.8 * (courtWidth / 15);
+
+        const ht = toCanvas(courtLength / 2, 0);
+        const hb = toCanvas(courtLength / 2, courtWidth);
+        ctx.beginPath();
+        ctx.moveTo(ht.x, ht.y);
+        ctx.lineTo(hb.x, hb.y);
+        ctx.stroke();
+        const c = toCanvas(courtLength / 2, courtWidth / 2);
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, circleR * s, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const yTop = courtWidth / 2 - paintW / 2;
+        for (const side of ["left", "right"]) {
+          const flip = side === "right";
+          const bx = (v) => (flip ? courtLength - v : v);
+          const p = toCanvas(Math.min(bx(0), bx(ftDist)), yTop);
+          ctx.strokeRect(p.x, p.y, ftDist * s, paintW * s);
+          const ftC = toCanvas(bx(ftDist), courtWidth / 2);
+          ctx.beginPath();
+          ctx.arc(ftC.x, ftC.y, circleR * s, 0, Math.PI * 2);
+          ctx.stroke();
+          const rim = toCanvas(bx(rimDist), courtWidth / 2);
+          ctx.beginPath();
+          ctx.arc(rim.x, rim.y, 0.35 * s, 0, Math.PI * 2);
+          ctx.stroke();
+          const cornerLen = Math.max(
+            0,
+            rimDist + Math.sqrt(Math.max(0, arcR * arcR - Math.pow(courtWidth / 2 - cornerY, 2)))
+          );
+          for (const cy of [cornerY, courtWidth - cornerY]) {
+            const a = toCanvas(bx(0), cy);
+            const b = toCanvas(bx(cornerLen), cy);
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+          const startAngle = Math.asin((courtWidth / 2 - cornerY) / arcR);
+          ctx.beginPath();
+          if (!flip) ctx.arc(rim.x, rim.y, arcR * s, -startAngle, startAngle, false);
+          else ctx.arc(rim.x, rim.y, arcR * s, Math.PI - startAngle, Math.PI + startAngle, false);
+          ctx.stroke();
+        }
+      }
+
+      function drawArrowHead(from, to) {
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        const size = 8;
+        ctx.beginPath();
+        ctx.moveTo(to.x, to.y);
+        ctx.lineTo(to.x - ux * size - uy * size * 0.55, to.y - uy * size + ux * size * 0.55);
+        ctx.lineTo(to.x - ux * size + uy * size * 0.55, to.y - uy * size - ux * size * 0.55);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      function drawPolyline(points, color, dashed) {
+        if (points.length < 2) return;
+        const canv = points.map((p) => toCanvas(p.x, p.y));
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.setLineDash(dashed ? [7, 5] : []);
+        ctx.beginPath();
+        ctx.moveTo(canv[0].x, canv[0].y);
+        for (let i = 1; i < canv.length; i++) ctx.lineTo(canv[i].x, canv[i].y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        drawArrowHead(canv[canv.length - 2], canv[canv.length - 1]);
+      }
+
+      function drawArrows() {
+        if (!showArrowsInput.checked) return;
+        const principals = visibleNodes().filter((n) => n.side === "offense" && n.reconPlayerId && n.trackId != null);
+        for (const node of principals) {
+          const track = trackById(node.trackId);
+          if (!track || track.pts.length < 2) continue;
+          const simplified = rdp(track.pts, 0.35);
+          drawPolyline(simplified, ARROW_STROKE, false);
+        }
+
+        const events = recon?.possessionModel?.events || [];
+        for (let i = 0; i < events.length; i++) {
+          const ev = events[i];
+          if (ev.action === "ball_screen" && ev.primaryPlayerId && ev.screenForPlayerId) {
+            const screener = nodeByReconId(ev.primaryPlayerId);
+            const handler = nodeByReconId(ev.screenForPlayerId);
+            const sTrack = screener && trackById(screener.trackId);
+            const hTrack = handler && trackById(handler.trackId);
+            let sx = screener?.x;
+            let sy = screener?.y;
+            let hx = handler?.x;
+            let hy = handler?.y;
+            if (sTrack && hTrack) {
+              const hit = closestApproach(sTrack.pts, hTrack.pts);
+              if (hit) {
+                sx = hit.screener.x;
+                sy = hit.screener.y;
+                hx = hit.handler.x;
+                hy = hit.handler.y;
+              }
+            }
+            if (sx == null || hx == null) continue;
+            const n = perpendicular(hx - sx, hy - sy);
+            const half = 0.7;
+            const a = { x: sx + n.x * half, y: sy + n.y * half };
+            const b = { x: sx - n.x * half, y: sy - n.y * half };
+            const ca = toCanvas(a.x, a.y);
+            const cb = toCanvas(b.x, b.y);
+            ctx.strokeStyle = SCREEN_STROKE;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(ca.x, ca.y);
+            ctx.lineTo(cb.x, cb.y);
+            ctx.stroke();
+          }
+
+          const isPass = ev.action === "pass" || ev.finalAction === "pocket_pass";
+          if (isPass) {
+            const toId = ev.primaryPlayerId;
+            const prev = events[i - 1];
+            const fromId =
+              prev?.primaryPlayerId && prev.primaryPlayerId !== toId
+                ? prev.primaryPlayerId
+                : recon?.possessionModel?.ballUpPlayerId;
+            if (!fromId || fromId === toId) continue;
+            const from = nodeByReconId(fromId);
+            const to = nodeByReconId(toId);
+            if (!from || !to) continue;
+            drawPolyline(
+              [
+                { x: from.x, y: from.y },
+                { x: to.x, y: to.y },
+              ],
+              PASS_STROKE,
+              true
+            );
+          }
+        }
+      }
+
+      function drawShot() {
+        if (!shotMark) return;
+        const p = toCanvas(shotMark.x, shotMark.y);
+        ctx.fillStyle = SHOT_FILL;
+        ctx.strokeStyle = "#7c2d12";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = SHOT_FILL;
+        ctx.font = "600 10px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        const tag = recon?.possessionModel?.outcome === "make" ? "MAKE" : "SHOT";
+        ctx.fillText(tag, p.x, p.y - 8);
+      }
+
+      function drawOffense(node, p, selected, kit, rgb) {
+        ctx.fillStyle = kit || OFFENSE_FILL;
+        ctx.strokeStyle = selected ? "#22c55e" : "rgba(255,255,255,0.85)";
+        ctx.lineWidth = selected ? 3 : 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, DOT_R, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        if (node.number != null && node.number !== "") {
+          const darkFill = rgb ? 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2] < 140 : false;
+          ctx.fillStyle = kit && darkFill ? "#f8fafc" : "#0b0f14";
+          ctx.font = "700 10px system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(node.number), p.x, p.y + 0.5);
+        }
+        if (node.hasBall) {
+          ctx.fillStyle = BALL_FILL;
+          ctx.beginPath();
+          ctx.arc(p.x + DOT_R - 1, p.y + DOT_R - 1, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawDefense(node, p, selected, kit) {
+        const r = DOT_R;
+        ctx.strokeStyle = selected ? "#22c55e" : kit || DEFENSE_X;
+        ctx.lineWidth = selected ? 3.5 : 2.5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(p.x - r, p.y - r);
+        ctx.lineTo(p.x + r, p.y + r);
+        ctx.moveTo(p.x + r, p.y - r);
+        ctx.lineTo(p.x - r, p.y + r);
+        ctx.stroke();
+        if (node.number != null && node.number !== "") {
+          ctx.fillStyle = kit || DEFENSE_X;
+          ctx.font = "700 9px system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(node.number), p.x, p.y + r + 10);
+        }
+      }
+
+      function drawNode(node) {
+        const p = toCanvas(node.x, node.y);
+        const selected = node.id === selectedId;
+        const track = tracks.find((t) => t.trackId === node.trackId);
+        const rgb = track ? kitRgb(track.team) : null;
+        const kit = rgb ? `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})` : null;
+        if (node.side === "defense") drawDefense(node, p, selected, kit);
+        else drawOffense(node, p, selected, kit, rgb);
+        if (node.label) {
+          ctx.fillStyle = kit || (node.side === "defense" ? DEFENSE_X : "#e2e8f0");
+          ctx.font = "600 10px system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(node.label, p.x, p.y - DOT_R - 4);
+        }
+      }
+
+      function drawCaption() {
+        if (!recon) return;
+        const pm = recon.possessionModel || {};
+        const text = [recon.playType, pm.phase, pm.outcome, pm.points != null ? `${pm.points} pts` : ""]
+          .filter(Boolean)
+          .join(" · ");
+        ctx.fillStyle = "rgba(15, 20, 25, 0.75)";
+        ctx.fillRect(12, 12, Math.min(420, text.length * 7 + 24), 28);
+        ctx.fillStyle = "#e7ecf3";
+        ctx.font = "600 12px system-ui, sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, 22, 26);
+      }
+
+      function draw() {
+        const cssW = canvas.width / (window.devicePixelRatio || 1);
+        const cssH = canvas.height / (window.devicePixelRatio || 1);
+        ctx.clearRect(0, 0, cssW, cssH);
+        drawCourt();
+        drawArrows();
+        drawShot();
+        for (const node of visibleNodes()) drawNode(node);
+        drawCaption();
+        timeLabel.textContent = tracks.length
+          ? `t = ${snapshotT.toFixed(2)}s / ${tMax.toFixed(2)}s`
+          : nodes.length
+            ? `${nodes.length} diagram players`
+            : "No snapshot";
+      }
+
+      function hitTest(courtPt) {
+        let best = null;
+        let bestD = HIT_RADIUS_M;
+        for (const node of visibleNodes()) {
+          const d = Math.hypot(node.x - courtPt.x, node.y - courtPt.y);
+          if (d < bestD) {
+            bestD = d;
+            best = { kind: "player", node };
+          }
+        }
+        if (shotMark) {
+          const d = Math.hypot(shotMark.x - courtPt.x, shotMark.y - courtPt.y);
+          if (d < bestD) best = { kind: "shot" };
+        }
+        return best;
+      }
+
+      function setAddMode(mode) {
+        addMode = addMode === mode ? null : mode;
+        addOBtn.classList.toggle("active", addMode === "offense");
+        addXBtn.classList.toggle("active", addMode === "defense");
+        canvas.classList.toggle("adding", !!addMode);
+      }
+
+      function addPlayerAt(courtPt, side) {
+        const node = {
+          id: uid("manual"),
+          trackId: null,
+          side,
+          sideLocked: true,
+          hidden: false,
+          x: courtPt.x,
+          y: courtPt.y,
+          number: null,
+          label: "",
+          reconPlayerId: null,
+          hasBall: false,
+          moved: true,
+        };
+        nodes.push(node);
+        selectedId = node.id;
+        setAddMode(null);
+        renderInspector();
+        draw();
+      }
+
+      canvas.addEventListener("pointerdown", (event) => {
+        const { court } = eventCanvasPoint(event);
+        if (addMode) {
+          addPlayerAt(court, addMode);
+          return;
+        }
+        const hit = hitTest(court);
+        if (!hit) {
+          selectedId = null;
+          renderTrackList();
+          renderInspector();
+          draw();
+          return;
+        }
+        if (hit.kind === "shot") {
+          selectedId = null;
+          drag = { kind: "shot", dx: court.x - shotMark.x, dy: court.y - shotMark.y };
+          canvas.classList.add("dragging");
+          canvas.setPointerCapture(event.pointerId);
+          renderInspector();
+          draw();
+          return;
+        }
+        selectedId = hit.node.id;
+        drag = {
+          kind: "player",
+          id: hit.node.id,
+          dx: court.x - hit.node.x,
+          dy: court.y - hit.node.y,
+        };
+        canvas.classList.add("dragging");
+        canvas.setPointerCapture(event.pointerId);
+        renderTrackList();
+        renderInspector();
+        draw();
+      });
+
+      canvas.addEventListener("pointermove", (event) => {
+        if (!drag) return;
+        const { court } = eventCanvasPoint(event);
+        if (drag.kind === "shot" && shotMark) {
+          shotMark.x = court.x - drag.dx;
+          shotMark.y = court.y - drag.dy;
+          shotMark.moved = true;
+        } else if (drag.kind === "player") {
+          const node = nodes.find((n) => n.id === drag.id);
+          if (node) {
+            node.x = court.x - drag.dx;
+            node.y = court.y - drag.dy;
+            node.moved = true;
+          }
+        }
+        draw();
+      });
+
+      function endDrag() {
+        drag = null;
+        canvas.classList.remove("dragging");
+      }
+      canvas.addEventListener("pointerup", endDrag);
+      canvas.addEventListener("pointercancel", endDrag);
+
+      function readJsonFile(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              resolve(JSON.parse(String(reader.result)));
+            } catch (err) {
+              reject(err);
+            }
+          };
+          reader.onerror = () => reject(reader.error);
+          reader.readAsText(file);
+        });
+      }
+
+      document.getElementById("movement-file").addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+        try {
+          loadMovement(await readJsonFile(file));
+        } catch (err) {
+          alert("Invalid movement JSON: " + err.message);
+        }
+      });
+
+      document.getElementById("recon-file").addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+        try {
+          loadReconstructions(await readJsonFile(file));
+        } catch (err) {
+          alert("Invalid reconstruction JSON: " + err.message);
+        }
+      });
+
+      reconPick.addEventListener("change", () => {
+        const index = Number(reconPick.value);
+        setReconstruction(reconstructions[index] || null);
+      });
+
+      offenseTeamSelect.addEventListener("change", () => {
+        if (suppressTeamChange) return;
+        applyOffenseTeam(offenseTeamSelect.value);
+      });
+
+      snapT.addEventListener("input", () => {
+        snapshotT = Number(snapT.value);
+        snapTLabel.textContent = snapshotT.toFixed(2);
+        rebuildNodesFromTracks({ keepMoved: true });
+        renderTrackList();
+        renderInspector();
+        draw();
+      });
+
+      document.getElementById("resnap-btn").addEventListener("click", () => {
+        rebuildNodesFromTracks({ keepMoved: true });
+        renderTrackList();
+        renderInspector();
+        draw();
+      });
+
+      document.getElementById("resnap-all-btn").addEventListener("click", () => {
+        for (const node of nodes) node.moved = false;
+        rebuildNodesFromTracks({ keepMoved: false });
+        renderTrackList();
+        renderInspector();
+        draw();
+      });
+
+      showArrowsInput.addEventListener("change", draw);
+      flipShotYInput.addEventListener("change", () => {
+        if (!shotMark?.moved) placeShotMark();
+        draw();
+      });
+
+      addOBtn.addEventListener("click", () => setAddMode("offense"));
+      addXBtn.addEventListener("click", () => setAddMode("defense"));
+
+      function buildDiagramArtifact() {
+        const pm = recon?.possessionModel || {};
+        return {
+          format: "play-diagram-v1",
+          reconstructionId: recon?.id ?? null,
+          playType: recon?.playType ?? null,
+          snapshotT,
+          offenseTeam,
+          flipShotY: flipShotYInput.checked,
+          showArrows: showArrowsInput.checked,
+          court: {
+            layout: courtLayout,
+            length: courtLength,
+            width: courtWidth,
+            unit: movement?.court?.unit ?? "m",
+          },
+          shotSpot: shotMark
+            ? { x: shotMark.x, y: shotMark.y, source: shotMark.source || "meters" }
+            : null,
+          possession: {
+            phase: pm.phase ?? null,
+            outcome: pm.outcome ?? null,
+            points: pm.points ?? null,
+            ballUpPlayerId: pm.ballUpPlayerId ?? null,
+            events: pm.events || [],
+          },
+          players: nodes.map((n) => ({
+            id: n.id,
+            trackId: n.trackId,
+            side: n.side,
+            symbol: n.side === "defense" ? "x" : "circle",
+            hidden: n.hidden,
+            x: n.x,
+            y: n.y,
+            number: n.number,
+            label: n.label,
+            reconPlayerId: n.reconPlayerId,
+            hasBall: n.hasBall,
+            moved: n.moved,
+            sideLocked: n.sideLocked,
+          })),
+        };
+      }
+
+      function downloadBlob(filename, blob) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+
+      document.getElementById("export-json").addEventListener("click", () => {
+        if (!nodes.length && !recon) {
+          alert("Load movement or a reconstruction first.");
+          return;
+        }
+        const blob = new Blob([JSON.stringify(buildDiagramArtifact(), null, 2)], {
+          type: "application/json",
+        });
+        downloadBlob("play_diagram.json", blob);
+      });
+
+      document.getElementById("export-png").addEventListener("click", () => {
+        const prev = selectedId;
+        selectedId = null;
+        draw();
+        canvas.toBlob((blob) => {
+          selectedId = prev;
+          draw();
+          if (!blob) {
+            alert("Could not export PNG.");
+            return;
+          }
+          downloadBlob("play_diagram.png", blob);
+        }, "image/png");
+      });
+
+      document.getElementById("import-file").addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+        try {
+          const parsed = await readJsonFile(file);
+          if (parsed.format !== "play-diagram-v1") {
+            alert("Expected format play-diagram-v1.");
+            return;
+          }
+          if (parsed.court) {
+            courtLayout = parsed.court.layout || courtLayout;
+            courtLength = parsed.court.length || courtLength;
+            courtWidth = parsed.court.width || courtWidth;
+          }
+          snapshotT = parsed.snapshotT ?? snapshotT;
+          snapT.value = String(snapshotT);
+          snapTLabel.textContent = Number(snapshotT).toFixed(2);
+          if (parsed.offenseTeam) {
+            suppressTeamChange = true;
+            if (![...offenseTeamSelect.options].some((o) => o.value === parsed.offenseTeam)) {
+              const opt = document.createElement("option");
+              opt.value = parsed.offenseTeam;
+              opt.textContent = parsed.offenseTeam;
+              offenseTeamSelect.appendChild(opt);
+            }
+            offenseTeam = parsed.offenseTeam;
+            offenseTeamSelect.value = offenseTeam;
+            offenseTeamSelect.disabled = false;
+            suppressTeamChange = false;
+          }
+          if (typeof parsed.flipShotY === "boolean") flipShotYInput.checked = parsed.flipShotY;
+          if (typeof parsed.showArrows === "boolean") showArrowsInput.checked = parsed.showArrows;
+          shotMark = parsed.shotSpot
+            ? { x: parsed.shotSpot.x, y: parsed.shotSpot.y, source: parsed.shotSpot.source, moved: true }
+            : null;
+          nodes = (parsed.players || []).map((n) => ({
+            id: n.id || uid("imported"),
+            trackId: n.trackId ?? null,
+            side: n.side || (n.symbol === "x" ? "defense" : "offense"),
+            sideLocked: !!n.sideLocked,
+            hidden: !!n.hidden,
+            x: n.x,
+            y: n.y,
+            number: n.number ?? null,
+            label: n.label || "",
+            reconPlayerId: n.reconPlayerId ?? null,
+            hasBall: !!n.hasBall,
+            moved: n.moved !== false,
+          }));
+          selectedId = null;
+          renderTrackList();
+          renderInspector();
+          updateDataInfo();
+          resizeCanvas();
+          draw();
+        } catch (err) {
+          alert("Invalid diagram JSON: " + err.message);
+        }
+      });
+
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+        draw();
+      });
+
+      resizeCanvas();
+      draw();
+    </script>
+  </body>
+</html>

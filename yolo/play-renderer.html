@@ -479,14 +479,30 @@
         event.target.value = "";
       });
 
+      function liftForDarkCourt(r, g, b) {
+        const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        if (y >= 72) return [r, g, b];
+        const scale = 72 / Math.max(y, 8);
+        return [
+          Math.min(255, Math.round(r * scale)),
+          Math.min(255, Math.round(g * scale)),
+          Math.min(255, Math.round(b * scale)),
+        ];
+      }
+
+      function cssRgb(r, g, b) {
+        const [lr, lg, lb] = liftForDarkCourt(r, g, b);
+        return `rgb(${lr}, ${lg}, ${lb})`;
+      }
+
       function teamColor(team, jerseyColor, index) {
         if (team === "referee") return REF_COLOR;
         const entry = (data.teams || []).find((t) => t.id === team);
-        if (entry && Array.isArray(entry.color)) {
-          return `rgb(${entry.color[0]}, ${entry.color[1]}, ${entry.color[2]})`;
+        if (entry && Array.isArray(entry.color) && entry.color.length === 3) {
+          return cssRgb(entry.color[0], entry.color[1], entry.color[2]);
         }
         if (Array.isArray(jerseyColor) && jerseyColor.length === 3) {
-          return `rgb(${jerseyColor[0]}, ${jerseyColor[1]}, ${jerseyColor[2]})`;
+          return cssRgb(jerseyColor[0], jerseyColor[1], jerseyColor[2]);
         }
         return FALLBACK_COLORS[index % FALLBACK_COLORS.length];
       }
@@ -824,7 +840,7 @@
           ctx.setLineDash([3, 3]);
         }
         ctx.fillStyle = player.color;
-        ctx.strokeStyle = "rgba(0,0,0,0.6)";
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2);

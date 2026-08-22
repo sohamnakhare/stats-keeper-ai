@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import heapq
 import re
+import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -144,7 +145,12 @@ class JerseyOcrCollector:
         if not tracks_with_crops:
             return {}
 
-        reader = self._make_reader()
+        try:
+            reader = self._make_reader()
+        except ImportError as exc:
+            print(f"Skipping jersey OCR ({exc})", file=sys.stderr, flush=True)
+            return {}
+
         results: dict[int, JerseyResult] = {}
 
         for track_id, heap in tracks_with_crops.items():

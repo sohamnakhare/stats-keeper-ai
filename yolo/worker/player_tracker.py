@@ -1,4 +1,4 @@
-"""Player detection (YOLO E-BARD) + ByteTrack tracking on sampled frames."""
+"""Player detection (YOLO E-BARD) + Deep OC-SORT tracking on sampled frames."""
 
 from __future__ import annotations
 
@@ -48,24 +48,36 @@ class PlayerObservation:
 
 
 def write_tracker_yaml(config: TrackingConfig) -> Path:
-    """Materialize ByteTrack params as a tracker YAML for ultralytics."""
-    content = "\n".join(
-        [
-            "tracker_type: bytetrack",
-            f"track_high_thresh: {config.track_high_thresh}",
-            f"track_low_thresh: {config.track_low_thresh}",
-            f"new_track_thresh: {config.new_track_thresh}",
-            f"track_buffer: {config.track_buffer}",
-            f"match_thresh: {config.match_thresh}",
-            f"fuse_score: {config.fuse_score}",
-            "",
-        ]
-    )
+    """Materialize tracker params as a YAML for ultralytics `model.track`."""
+    lines = [
+        f"tracker_type: {config.tracker_type}",
+        f"track_high_thresh: {config.track_high_thresh}",
+        f"track_low_thresh: {config.track_low_thresh}",
+        f"new_track_thresh: {config.new_track_thresh}",
+        f"track_buffer: {config.track_buffer}",
+        f"match_thresh: {config.match_thresh}",
+        f"fuse_score: {config.fuse_score}",
+    ]
+    if config.tracker_type == "deepocsort":
+        lines.extend(
+            [
+                f"with_reid: {config.with_reid}",
+                f"model: {config.reid_model}",
+                f"proximity_thresh: {config.proximity_thresh}",
+                f"appearance_thresh: {config.appearance_thresh}",
+                f"alpha_fixed_emb: {config.alpha_fixed_emb}",
+                f"gmc_method: {config.gmc_method}",
+                f"delta_t: {config.delta_t}",
+                f"inertia: {config.inertia}",
+                f"use_byte: {config.use_byte}",
+            ]
+        )
+    lines.append("")
     tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", prefix="bytetrack_", delete=False, encoding="utf-8"
+        mode="w", suffix=".yaml", prefix="tracker_", delete=False, encoding="utf-8"
     )
     with tmp:
-        tmp.write(content)
+        tmp.write("\n".join(lines))
     return Path(tmp.name)
 
 

@@ -229,8 +229,10 @@
     <header>
       <h1>Mark court landmarks for homography calibration</h1>
       <p>
-        Load a video, pause on a clear frame, pick a landmark on the mini court, then
-        click that spot on the video. 4+ points required (spread them out). Export
+        Load a video, pause on a clear frame, then
+        <strong>Detect from this frame</strong> to propose landmarks (or pick them
+        on the mini court and click the video). 4+ spread-out points required.
+        Check the verify overlay and nudge anything that’s off. Export
         <code>court_calibration.json</code>.
       </p>
     </header>
@@ -290,6 +292,12 @@
           <canvas id="court-diagram" width="340" height="200"></canvas>
           <p class="hint" style="margin: 0.5rem 0" id="landmark-status">
             Click a landmark dot to select it.
+          </p>
+          <button type="button" id="detect-from-frame" class="primary">
+            Detect from this frame
+          </button>
+          <p class="hint" style="margin: 0.35rem 0 0.5rem" id="detect-status">
+            Set layout/preset first. Pause on a frame with the paint and corners visible.
           </p>
           <div class="row">
             <button type="button" id="unset-selected">Unset selected</button>
@@ -728,6 +736,684 @@
         };
       }
 
+      // --- Detect landmarks from the current video frame ---
+
+      const detectStatus = document.getElementById("detect-status");
+
+      function rgbToHsv(r, g, b) {
+        r /= 255;
+        g /= 255;
+        b /= 255;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const d = max - min;
+        let h = 0;
+        if (d > 1e-6) {
+          if (max === r) h = ((g - b) / d) % 6;
+          else if (max === g) h = (b - r) / d + 2;
+          else h = (r - g) / d + 4;
+          h *= 60;
+          if (h < 0) h += 360;
+        }
+        return { h: h / 2, s: max === 0 ? 0 : d / max, v: max }; // h in OpenCV 0-180
+      }
+
+      function downscaleImageData(src, maxW) {
+        const scale = Math.min(1, maxW / src.width);
+        if (scale >= 0.999) return { data: src, scale: 1 };
+        const w = Math.max(1, Math.round(src.width * scale));
+        const h = Math.max(1, Math.round(src.height * scale));
+        const c = document.createElement("canvas");
+        c.width = src.width;
+        c.height = src.height;
+        c.getContext("2d").putImageData(src, 0, 0);
+        const o = document.createElement("canvas");
+        o.width = w;
+        o.height = h;
+        const ctx = o.getContext("2d");
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(c, 0, 0, w, h);
+        return { data: ctx.getImageData(0, 0, w, h), scale: w / src.width };
+      }
+
+      function frameStats(imageData) {
+        const { data, width: w, height: h } = imageData;
+        const n = w * h;
+        const hue = new Float32Array(n);
+        const sat = new Float32Array(n);
+        const val = new Float32Array(n);
+        const gray = new Float32Array(n);
+        for (let i = 0, p = 0; i < n; i++, p += 4) {
+          const r = data[p];
+          const g = data[p + 1];
+          const b = data[p + 2];
+          const hsv = rgbToHsv(r, g, b);
+          hue[i] = hsv.h;
+          sat[i] = hsv.s * 255;
+          val[i] = hsv.v * 255;
+          gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+        }
+        return { w, h, n, hue, sat, val, gray };
+      }
+
+      function median(values) {
+        if (!values.length) return 0;
+        const s = values.slice().sort((a, b) => a - b);
+        return s[(s.length / 2) | 0];
+      }
+
+      function boxMorph(src, w, h, radius, erode) {
+        const out = new Uint8Array(w * h);
+        const r = Math.max(1, radius);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            let keep = erode;
+            const y0 = Math.max(0, y - r);
+            const y1 = Math.min(h - 1, y + r);
+            const x0 = Math.max(0, x - r);
+            const x1 = Math.min(w - 1, x + r);
+            outer: for (let yy = y0; yy <= y1; yy++) {
+              for (let xx = x0; xx <= x1; xx++) {
+                const on = src[yy * w + xx];
+                if (erode && !on) {
+                  keep = false;
+                  break outer;
+                }
+                if (!erode && on) {
+                  keep = true;
+                  break outer;
+                }
+              }
+            }
+            out[y * w + x] = keep ? 1 : 0;
+          }
+        }
+        return out;
+      }
+
+      function connectedComponents(mask, w, h, minArea) {
+        const seen = new Uint8Array(w * h);
+        const comps = [];
+        const stack = [];
+        for (let i = 0; i < mask.length; i++) {
+          if (!mask[i] || seen[i]) continue;
+          stack.push(i);
+          seen[i] = 1;
+          const pixels = [];
+          let minx = w;
+          let miny = h;
+          let maxx = 0;
+          let maxy = 0;
+          while (stack.length) {
+            const j = stack.pop();
+            const x = j % w;
+            const y = (j / w) | 0;
+            pixels.push(x, y);
+            if (x < minx) minx = x;
+            if (y < miny) miny = y;
+            if (x > maxx) maxx = x;
+            if (y > maxy) maxy = y;
+            const neigh = [j - 1, j + 1, j - w, j + w];
+            for (const k of neigh) {
+              if (k < 0 || k >= mask.length || seen[k] || !mask[k]) continue;
+              const kx = k % w;
+              const ky = (k / w) | 0;
+              if (Math.abs(kx - x) + Math.abs(ky - y) !== 1) continue;
+              seen[k] = 1;
+              stack.push(k);
+            }
+          }
+          const area = pixels.length / 2;
+          if (area < minArea) continue;
+          comps.push({ pixels, area, minx, miny, maxx, maxy });
+        }
+        comps.sort((a, b) => b.area - a.area);
+        return comps;
+      }
+
+      function convexHull(pixels) {
+        const pts = [];
+        for (let i = 0; i < pixels.length; i += 2) pts.push({ x: pixels[i], y: pixels[i + 1] });
+        if (pts.length < 3) return pts;
+        pts.sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
+        const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+        const lower = [];
+        for (const p of pts) {
+          while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
+            lower.pop();
+          }
+          lower.push(p);
+        }
+        const upper = [];
+        for (let i = pts.length - 1; i >= 0; i--) {
+          const p = pts[i];
+          while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
+            upper.pop();
+          }
+          upper.push(p);
+        }
+        lower.pop();
+        upper.pop();
+        return lower.concat(upper);
+      }
+
+      function rdp(points, eps) {
+        if (points.length < 3) return points.slice();
+        const sq = eps * eps;
+        const keep = new Uint8Array(points.length);
+        keep[0] = 1;
+        keep[points.length - 1] = 1;
+        const stack = [[0, points.length - 1]];
+        while (stack.length) {
+          const [s, e] = stack.pop();
+          const a = points[s];
+          const b = points[e];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy || 1;
+          let maxD = -1;
+          let maxI = -1;
+          for (let i = s + 1; i < e; i++) {
+            const p = points[i];
+            const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+            const px = a.x + t * dx;
+            const py = a.y + t * dy;
+            const d = (p.x - px) ** 2 + (p.y - py) ** 2;
+            if (d > maxD) {
+              maxD = d;
+              maxI = i;
+            }
+          }
+          if (maxD > sq && maxI >= 0) {
+            keep[maxI] = 1;
+            stack.push([s, maxI], [maxI, e]);
+          }
+        }
+        return points.filter((_, i) => keep[i]);
+      }
+
+      function quadArea(pts) {
+        let a = 0;
+        for (let i = 0; i < pts.length; i++) {
+          const p = pts[i];
+          const q = pts[(i + 1) % pts.length];
+          a += p.x * q.y - q.x * p.y;
+        }
+        return a / 2;
+      }
+
+      function maxAreaQuad(hull) {
+        const n = hull.length;
+        if (n === 4) return hull.slice();
+        if (n < 4) return null;
+        let best = null;
+        let bestA = 0;
+        for (let i = 0; i < n; i++) {
+          for (let j = i + 1; j < n; j++) {
+            for (let k = j + 1; k < n; k++) {
+              for (let m = k + 1; m < n; m++) {
+                const pts = [hull[i], hull[j], hull[k], hull[m]];
+                const a = Math.abs(quadArea(pts));
+                if (a > bestA) {
+                  bestA = a;
+                  best = pts;
+                }
+              }
+            }
+          }
+        }
+        return best;
+      }
+
+      function approxQuad(hull) {
+        if (!hull || hull.length < 4) return null;
+        let peri = 0;
+        for (let i = 0; i < hull.length; i++) {
+          const a = hull[i];
+          const b = hull[(i + 1) % hull.length];
+          peri += Math.hypot(b.x - a.x, b.y - a.y);
+        }
+        const closed = hull.concat([hull[0]]);
+        for (const frac of [0.02, 0.03, 0.04, 0.05, 0.06]) {
+          const approx = rdp(closed, frac * peri);
+          const pts = approx[approx.length - 1] === approx[0] ? approx.slice(0, -1) : approx;
+          if (pts.length === 4) return pts;
+        }
+        return maxAreaQuad(hull);
+      }
+
+      function orderQuadCW(pts) {
+        const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+        const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+        return pts
+          .slice()
+          .sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+      }
+
+      function sobelMag(gray, w, h) {
+        const mag = new Float32Array(w * h);
+        let max = 1e-6;
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            const i = y * w + x;
+            const gx =
+              -gray[i - w - 1] -
+              2 * gray[i - 1] -
+              gray[i + w - 1] +
+              gray[i - w + 1] +
+              2 * gray[i + 1] +
+              gray[i + w + 1];
+            const gy =
+              -gray[i - w - 1] -
+              2 * gray[i - w] -
+              gray[i - w + 1] +
+              gray[i + w - 1] +
+              2 * gray[i + w] +
+              gray[i + w + 1];
+            const m = Math.hypot(gx, gy);
+            mag[i] = m;
+            if (m > max) max = m;
+          }
+        }
+        for (let i = 0; i < mag.length; i++) mag[i] /= max;
+        return mag;
+      }
+
+      function sampleGrad(mag, w, h, x, y) {
+        if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) return 0;
+        return mag[(y | 0) * w + (x | 0)];
+      }
+
+      function snapToGradient(mag, w, h, x, y, radius) {
+        let best = { x, y, s: sampleGrad(mag, w, h, x, y) };
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const s = sampleGrad(mag, w, h, x + dx, y + dy);
+            if (s > best.s) best = { x: x + dx, y: y + dy, s };
+          }
+        }
+        return best;
+      }
+
+      function paintCourtCorners() {
+        const L = courtLength;
+        const Ww = courtWidth;
+        const p = paintWidth;
+        const ft = freeThrow;
+        if (isHalfCourt()) {
+          const xL = L / 2 - p / 2;
+          const xR = L / 2 + p / 2;
+          return {
+            paint: [
+              { x: xL, y: 0 },
+              { x: xR, y: 0 },
+              { x: xR, y: ft },
+              { x: xL, y: ft },
+            ],
+            extra: [],
+          };
+        }
+        const yT = Ww / 2 - p / 2;
+        const yB = Ww / 2 + p / 2;
+        return {
+          paint: [
+            { x: 0, y: yT },
+            { x: 0, y: yB },
+            { x: ft, y: yB },
+            { x: ft, y: yT },
+          ],
+          extra: [
+            [
+              { x: L, y: yT },
+              { x: L, y: yB },
+              { x: L - ft, y: yB },
+              { x: L - ft, y: yT },
+            ],
+          ],
+        };
+      }
+
+      function lineSamples() {
+        const L = courtLength;
+        const Ww = courtWidth;
+        const p = paintWidth;
+        const ft = freeThrow;
+        const segs = [
+          [
+            [0, 0],
+            [L, 0],
+          ],
+          [
+            [0, 0],
+            [0, Ww],
+          ],
+          [
+            [L, 0],
+            [L, Ww],
+          ],
+          [
+            [0, Ww],
+            [L, Ww],
+          ],
+        ];
+        if (isHalfCourt()) {
+          const xL = L / 2 - p / 2;
+          const xR = L / 2 + p / 2;
+          segs.push(
+            [
+              [xL, 0],
+              [xL, ft],
+            ],
+            [
+              [xR, 0],
+              [xR, ft],
+            ],
+            [
+              [xL, ft],
+              [xR, ft],
+            ]
+          );
+        } else {
+          const yT = Ww / 2 - p / 2;
+          const yB = Ww / 2 + p / 2;
+          segs.push(
+            [
+              [0, yT],
+              [ft, yT],
+            ],
+            [
+              [0, yB],
+              [ft, yB],
+            ],
+            [
+              [ft, yT],
+              [ft, yB],
+            ],
+            [
+              [L, yT],
+              [L - ft, yT],
+            ],
+            [
+              [L, yB],
+              [L - ft, yB],
+            ],
+            [
+              [L - ft, yT],
+              [L - ft, yB],
+            ],
+            [
+              [L / 2, 0],
+              [L / 2, Ww],
+            ]
+          );
+        }
+        const pts = [];
+        for (const [[ax, ay], [bx, by]] of segs) {
+          for (let i = 0; i <= 18; i++) {
+            const t = i / 18;
+            pts.push({ x: ax + t * (bx - ax), y: ay + t * (by - ay) });
+          }
+        }
+        if (isHalfCourt()) {
+          for (let deg = 0; deg <= 180; deg += 8) {
+            const a = (deg * Math.PI) / 180;
+            pts.push({
+              x: L / 2 + arcRadius * Math.cos(a),
+              y: rimDist + arcRadius * Math.sin(a),
+            });
+          }
+        }
+        return pts;
+      }
+
+      function scoreHomography(H, mag, w, h) {
+        const samples = lineSamples();
+        let s = 0;
+        let n = 0;
+        for (const pt of samples) {
+          const q = applyH(H, pt.x, pt.y);
+          if (!q) continue;
+          if (q.x >= 1 && q.y >= 1 && q.x < w - 1 && q.y < h - 1) {
+            s += sampleGrad(mag, w, h, q.x, q.y);
+          } else {
+            s -= 0.04;
+          }
+          n += 1;
+        }
+        const corners = [
+          [0, 0],
+          [courtLength, 0],
+          [courtLength, courtWidth],
+          [0, courtWidth],
+        ];
+        let inside = 0;
+        for (const [cx, cy] of corners) {
+          const q = applyH(H, cx, cy);
+          if (
+            q &&
+            q.x > -0.2 * w &&
+            q.x < 1.2 * w &&
+            q.y > -0.2 * h &&
+            q.y < 1.2 * h
+          ) {
+            inside += 1;
+          }
+        }
+        return { score: s / Math.max(n, 1) + 0.25 * inside, inside };
+      }
+
+      function bestHomographyFromQuad(quad, courtPtsList, mag, w, h) {
+        const img = orderQuadCW(quad);
+        let best = null;
+        for (const courtPts of courtPtsList) {
+          for (let start = 0; start < 4; start++) {
+            for (const sign of [1, -1]) {
+              const dst = [0, 1, 2, 3].map((i) => img[(start + sign * i + 4) % 4]);
+              const H = solveHomography(courtPts, dst);
+              if (!H) continue;
+              const { score, inside } = scoreHomography(H, mag, w, h);
+              if (!best || score > best.score) best = { H, score, inside };
+            }
+          }
+        }
+        return best;
+      }
+
+      function projectLandmarks(H, mag, w, h) {
+        const out = {};
+        for (const lm of landmarks) {
+          const p = applyH(H, lm.cx, lm.cy);
+          if (!p) continue;
+          const snapped = snapToGradient(mag, w, h, p.x, p.y, 12);
+          const nx = snapped.x / w;
+          const ny = snapped.y / h;
+          if (nx < -0.05 || nx > 1.05 || ny < -0.05 || ny > 1.05) continue;
+          out[lm.id] = {
+            x: Math.min(1, Math.max(0, nx)),
+            y: Math.min(1, Math.max(0, ny)),
+          };
+        }
+        return out;
+      }
+
+      function clusterComponents(comps, gap) {
+        const used = comps.map(() => false);
+        const clusters = [];
+        for (let i = 0; i < comps.length; i++) {
+          if (used[i]) continue;
+          const group = [i];
+          used[i] = true;
+          let changed = true;
+          while (changed) {
+            changed = false;
+            for (let j = 0; j < comps.length; j++) {
+              if (used[j]) continue;
+              for (const k of group) {
+                const a = comps[k];
+                const b = comps[j];
+                const gapx = Math.max(0, Math.max(a.minx, b.minx) - Math.min(a.maxx, b.maxx));
+                const gapy = Math.max(0, Math.max(a.miny, b.miny) - Math.min(a.maxy, b.maxy));
+                if (gapx <= gap && gapy <= gap) {
+                  group.push(j);
+                  used[j] = true;
+                  changed = true;
+                  break;
+                }
+              }
+            }
+          }
+          clusters.push(group);
+        }
+        clusters.sort((a, b) => {
+          const sa = a.reduce((s, idx) => s + comps[idx].area, 0);
+          const sb = b.reduce((s, idx) => s + comps[idx].area, 0);
+          return sb - sa;
+        });
+        return clusters;
+      }
+
+      function detectFromFrameStats(st) {
+        const { w, h, hue, sat, val, gray } = st;
+        const mag = sobelMag(gray, w, h);
+
+        const y0 = (h * 0.35) | 0;
+        const y1 = (h * 0.75) | 0;
+        const x0 = (w * 0.2) | 0;
+        const x1 = (w * 0.8) | 0;
+        const hs = [];
+        const ss = [];
+        const vs = [];
+        for (let y = y0; y < y1; y++) {
+          for (let x = x0; x < x1; x++) {
+            const i = y * w + x;
+            if (sat[i] > 20 && sat[i] < 200 && val[i] > 70 && val[i] < 245) {
+              hs.push(hue[i]);
+              ss.push(sat[i]);
+              vs.push(val[i]);
+            }
+          }
+        }
+        const mh = median(hs);
+        const ms = median(ss);
+        const mv = median(vs);
+
+        const wood = new Uint8Array(w * h);
+        const paint = new Uint8Array(w * h);
+        for (let i = 0; i < w * h; i++) {
+          const woodHue = Math.abs(hue[i] - mh) < 12 || Math.abs(hue[i] - mh) > 168;
+          if (woodHue && Math.abs(sat[i] - ms) < 55 && Math.abs(val[i] - mv) < 70) {
+            wood[i] = 1;
+          }
+          const isWoodHue = hue[i] > mh - 12 && hue[i] < mh + 12;
+          const red = hue[i] < 12 || hue[i] > 168;
+          const blue = hue[i] > 95 && hue[i] < 140;
+          if (sat[i] > 90 && val[i] > 70 && (red || blue) && !isWoodHue) paint[i] = 1;
+        }
+
+        const eroded = boxMorph(paint, w, h, Math.max(2, Math.round(w / 96)), true);
+        const minArea = w * h * 0.0015;
+        let cores = connectedComponents(eroded, w, h, minArea);
+        cores = cores.filter((c) => {
+          if (c.miny > h * 0.78) return false;
+          const hull = convexHull(c.pixels);
+          let peri = 0;
+          for (let i = 0; i < hull.length; i++) {
+            const a = hull[i];
+            const b = hull[(i + 1) % hull.length];
+            peri += Math.hypot(b.x - a.x, b.y - a.y);
+          }
+          const circ = (4 * Math.PI * c.area) / (peri * peri + 1e-6);
+          if (circ > 0.7) return false;
+          if (c.maxx - c.minx < 12 || c.maxy - c.miny < 12) return false;
+          return true;
+        });
+
+        const paintQuads = [];
+        if (cores.length) {
+          const clusters = clusterComponents(cores, Math.max(8, w * 0.03));
+          const group = clusters[0].map((i) => cores[i]);
+          const coreMask = new Uint8Array(w * h);
+          for (const c of group) {
+            for (let i = 0; i < c.pixels.length; i += 2) {
+              coreMask[c.pixels[i + 1] * w + c.pixels[i]] = 1;
+            }
+          }
+          const restored = boxMorph(coreMask, w, h, Math.max(3, Math.round(w / 60)), false);
+          const andPaint = new Uint8Array(w * h);
+          for (let i = 0; i < andPaint.length; i++) andPaint[i] = restored[i] && paint[i] ? 1 : 0;
+          const filled = connectedComponents(andPaint, w, h, minArea);
+          if (filled[0]) {
+            const quad = approxQuad(convexHull(filled[0].pixels));
+            if (quad) paintQuads.push(quad);
+          }
+        }
+
+        const { paint: paintA, extra } = paintCourtCorners();
+        const courtPtLists = [paintA, ...extra];
+        let best = null;
+        for (const quad of paintQuads) {
+          const cand = bestHomographyFromQuad(quad, courtPtLists, mag, w, h);
+          if (cand && (!best || cand.score > best.score)) best = cand;
+        }
+
+        if (!best || best.inside < 3) {
+          const woodBig = connectedComponents(wood, w, h, w * h * 0.05)[0];
+          if (woodBig) {
+            const wquad = approxQuad(convexHull(woodBig.pixels));
+            if (wquad) {
+              const corners = [
+                { x: 0, y: 0 },
+                { x: courtLength, y: 0 },
+                { x: courtLength, y: courtWidth },
+                { x: 0, y: courtWidth },
+              ];
+              const cand = bestHomographyFromQuad(wquad, [corners], mag, w, h);
+              if (
+                cand &&
+                (!best || (best.inside < 3 && cand.inside >= best.inside && cand.score > best.score))
+              ) {
+                best = cand;
+              }
+            }
+          }
+        }
+
+        if (!best) {
+          return { points: null, message: "Could not find a court quad in this frame." };
+        }
+        const points = projectLandmarks(best.H, mag, w, h);
+        const n = Object.keys(points).length;
+        if (n < 4) {
+          return {
+            points: null,
+            message: "Found a homography but fewer than 4 landmarks landed in frame.",
+          };
+        }
+        return {
+          points,
+          message: `Proposed ${n} landmarks (score ${best.score.toFixed(2)}). Check the verify overlay and nudge any that miss the lines.`,
+        };
+      }
+
+      function grabVideoFrame() {
+        if (!video.videoWidth) return null;
+        const c = document.createElement("canvas");
+        c.width = video.videoWidth;
+        c.height = video.videoHeight;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(video, 0, 0);
+        return ctx.getImageData(0, 0, c.width, c.height);
+      }
+
+      function detectLandmarksFromCurrentFrame() {
+        const raw = grabVideoFrame();
+        if (!raw) {
+          return { points: null, message: "Load a video first." };
+        }
+        const { data } = downscaleImageData(raw, 480);
+        return detectFromFrameStats(frameStats(data));
+      }
+
       function currentHomography() {
         const pairs = landmarks.filter((lm) => lm.id in marked);
         if (pairs.length < 4) return null;
@@ -995,6 +1681,36 @@
       });
 
       // --- Buttons ---
+
+      document.getElementById("detect-from-frame").addEventListener("click", () => {
+        if (!video.src || !video.videoWidth) {
+          detectStatus.textContent = "Load a video first.";
+          return;
+        }
+        if (Object.keys(marked).length && !confirm("Replace existing landmarks with auto-detect?")) {
+          return;
+        }
+        video.pause();
+        detectStatus.textContent = "Detecting court landmarks…";
+        const btn = document.getElementById("detect-from-frame");
+        btn.disabled = true;
+        requestAnimationFrame(() => {
+          try {
+            const result = detectLandmarksFromCurrentFrame();
+            detectStatus.textContent = result.message;
+            if (result.points) {
+              marked = result.points;
+              showVerifyInput.checked = true;
+              selectedId = null;
+              refresh();
+            }
+          } catch (err) {
+            detectStatus.textContent = "Detect failed: " + (err && err.message ? err.message : err);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
 
       document.getElementById("unset-selected").addEventListener("click", () => {
         if (selectedId) delete marked[selectedId];

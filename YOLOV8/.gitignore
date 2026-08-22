@@ -1,0 +1,49 @@
+# Virtual env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Model weights (download via scripts/download_model.py)
+*.pt
+*.pth
+*.onnx
+*.engine
+*.mlmodel
+
+# Hugging Face / Ultralytics caches
+.cache/
+**/models/.cache/
+runs/
+
+# Media
+*.mp4
+*.webm
+*.mkv
+*.avi
+*.mov
+*.m4v
+*.gif
+
+# Pipeline outputs — keep directory via .gitkeep
+output/**
+!output/.gitkeep
+!models/.gitkeep
