@@ -10,6 +10,7 @@
         --panel: #1a2332;
         --text: #e7ecf3;
         --muted: #8b9cb3;
+        --scorebug: #f43f5e;
         --game-clock: #f97316;
         --home-score: #38bdf8;
         --away-score: #a855f7;
@@ -149,6 +150,11 @@
         background: #2c3a52;
       }
 
+      button.active-scorebug {
+        border-color: var(--scorebug);
+        background: color-mix(in srgb, var(--scorebug) 20%, #243044);
+      }
+
       button.active-game-clock {
         border-color: var(--game-clock);
         background: color-mix(in srgb, var(--game-clock) 20%, #243044);
@@ -217,6 +223,10 @@
         border-radius: 2px;
       }
 
+      .dot.scorebug {
+        background: var(--scorebug);
+      }
+
       .dot.game-clock {
         background: var(--game-clock);
       }
@@ -279,7 +289,7 @@
     <header>
       <h1>Mark scoreboard regions</h1>
       <p>
-        Load a video, mark bounding boxes for game clock, scores, and optional regions.
+        Load a video, draw a box around the scorebug, then mark the game clock, scores, and optional regions inside it.
         Export <code>scoreboard_roi.json</code> for OCR processing.
       </p>
     </header>
@@ -307,9 +317,21 @@
         </div>
 
         <div class="card">
+          <h2>Scorebug</h2>
+          <button type="button" id="mode-scorebug" class="active-scorebug">Scorebug</button>
+          <div class="legend" style="margin: 0.625rem 0">
+            <span><i class="dot scorebug"></i> Scorebug</span>
+          </div>
+          <p class="hint">
+            Draw one box around the whole scoreboard overlay. Inner regions are read from this crop.
+          </p>
+          <button type="button" id="clear-scorebug" style="margin-top: 0.625rem">Clear</button>
+        </div>
+
+        <div class="card">
           <h2>Required regions</h2>
           <div class="btn-grid-3">
-            <button type="button" id="mode-game-clock" class="active-game-clock">Game Clock</button>
+            <button type="button" id="mode-game-clock">Game Clock</button>
             <button type="button" id="mode-home-score">Home</button>
             <button type="button" id="mode-away-score">Away</button>
           </div>
@@ -351,6 +373,7 @@
         <div class="card">
           <h2>Status</h2>
           <div class="region-status" id="region-status">
+            Scorebug: <span class="not-set">not set</span><br>
             Game Clock: <span class="not-set">not set</span><br>
             Home Score: <span class="not-set">not set</span><br>
             Away Score: <span class="not-set">not set</span><br>
@@ -405,6 +428,7 @@
       const regionStatus = document.getElementById("region-status");
 
       const modeButtons = {
+        "scorebug": document.getElementById("mode-scorebug"),
         "game_clock": document.getElementById("mode-game-clock"),
         "home_score": document.getElementById("mode-home-score"),
         "away_score": document.getElementById("mode-away-score"),
@@ -413,6 +437,7 @@
       };
 
       const clearButtons = {
+        "scorebug": document.getElementById("clear-scorebug"),
         "game_clock": document.getElementById("clear-game-clock"),
         "home_score": document.getElementById("clear-home-score"),
         "away_score": document.getElementById("clear-away-score"),
@@ -421,6 +446,7 @@
       };
 
       const regionColors = {
+        "scorebug": "#f43f5e",
         "game_clock": "#f97316",
         "home_score": "#38bdf8",
         "away_score": "#a855f7",
@@ -429,6 +455,7 @@
       };
 
       const regionLabels = {
+        "scorebug": "BUG",
         "game_clock": "CLOCK",
         "home_score": "HOME",
         "away_score": "AWAY",
@@ -436,11 +463,12 @@
         "quarter": "QTR",
       };
 
-      /** @type {"game_clock" | "home_score" | "away_score" | "shot_clock" | "quarter"} */
-      let activeMode = "game_clock";
+      /** @type {"scorebug" | "game_clock" | "home_score" | "away_score" | "shot_clock" | "quarter"} */
+      let activeMode = "scorebug";
 
       /** @type {Record<string, Region | null>} */
       const regions = {
+        "scorebug": null,
         "game_clock": null,
         "home_score": null,
         "away_score": null,

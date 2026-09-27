@@ -96,7 +96,7 @@ class ScoreboardOCRReader:
         if PaddleOCR is None:
             raise ImportError(
                 "paddleocr is required for scoreboard OCR. "
-                "Install with: pip install paddleocr paddlepaddle"
+                "Install with: pip install -r requirements.txt"
             )
         import os
         os.environ.setdefault("GLOG_minloglevel", "2")

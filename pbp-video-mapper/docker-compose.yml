@@ -1,0 +1,11 @@
+services:
+  worker:
+    image: ${PBP_IMAGE:?set PBP_IMAGE to ghcr.io/<owner>/<repo>/pbp-video-mapper}:${IMAGE_TAG:-latest}
+    gpus: all
+    volumes:
+      - downloads:/app/worker/downloads
+      - output:/app/worker/output
+
+volumes:
+  downloads:
+  output:

@@ -11,7 +11,10 @@ WORKER_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_ROOT = WORKER_ROOT.parent
 sys.path.insert(0, str(PACKAGE_ROOT))
 
+from worker.download_video import download_video  # noqa: E402
+from worker.scorebug_api import fetch_scorebug_video  # noqa: E402
 from worker.scoreboard_detector import (  # noqa: E402
+    ocr_scorebug_track,
     process_video_to_scoreboard_track,
     save_scoreboard_track,
 )
@@ -21,11 +24,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Extract scoreboard data from video using OCR"
     )
-    parser.add_argument("--video", type=Path, required=True, help="Input video path")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--video", type=Path, help="Input video path")
+    source.add_argument(
+        "--url",
+        help="YouTube link or direct .mp4, .webm, .mkv, or .mov URL",
+    )
+    source.add_argument(
+        "--id",
+        help=(
+            "Scorebug video id; loads the URL and markings from "
+            "$SCOREBUG_API_BASE (default http://localhost:3000)"
+        ),
+    )
     parser.add_argument(
         "--roi",
         type=Path,
-        required=True,
         help="Scoreboard ROI config JSON (from scoreboard-marker.html)",
     )
     parser.add_argument(
@@ -57,32 +71,66 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not args.video.exists():
-        print(f"Video not found: {args.video}", file=sys.stderr)
-        sys.exit(1)
+    api_video = None
+    if args.id:
+        try:
+            api_video = fetch_scorebug_video(args.id)
+            video_path = download_video(api_video.video_url)
+        except Exception as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+    elif args.roi is None:
+        parser.error("--roi is required unless --id is set")
+    elif args.url:
+        try:
+            video_path = download_video(args.url)
+        except Exception as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+    else:
+        video_path = args.video
+        if not video_path.exists():
+            print(f"Video not found: {video_path}", file=sys.stderr)
+            sys.exit(1)
 
-    if not args.roi.exists():
+    if api_video is None and not args.roi.exists():
         print(f"ROI config not found: {args.roi}", file=sys.stderr)
         sys.exit(1)
 
     def on_progress(pct: int) -> None:
         print(f"Progress: {pct}%", flush=True)
 
-    print(f"Processing video: {args.video}")
-    print(f"ROI config: {args.roi}")
+    print(f"Processing video: {video_path}")
+    if api_video is not None:
+        print(f"Scorebug video id: {args.id}")
+        print(f"Fields: {', '.join(api_video.fields)}")
+    else:
+        print(f"ROI config: {args.roi}")
     print(f"Sample FPS: {args.fps}")
     print(f"GPU: {'disabled' if args.no_gpu else 'enabled'}")
     print()
 
-    artifact = process_video_to_scoreboard_track(
-        video_path=args.video,
-        roi_config_path=args.roi,
-        sample_fps=args.fps,
-        gpu=not args.no_gpu,
-        smooth=not args.no_smooth,
-        include_raw_ocr=args.debug,
-        on_progress=on_progress,
-    )
+    if api_video is not None:
+        artifact = ocr_scorebug_track(
+            video_path=video_path,
+            scorebug=api_video.scorebug,
+            regions=api_video.fields,
+            sample_fps=args.fps,
+            gpu=not args.no_gpu,
+            smooth=not args.no_smooth,
+            include_raw_ocr=args.debug,
+            on_progress=on_progress,
+        )
+    else:
+        artifact = process_video_to_scoreboard_track(
+            video_path=video_path,
+            roi_config_path=args.roi,
+            sample_fps=args.fps,
+            gpu=not args.no_gpu,
+            smooth=not args.no_smooth,
+            include_raw_ocr=args.debug,
+            on_progress=on_progress,
+        )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     save_scoreboard_track(artifact, args.output)

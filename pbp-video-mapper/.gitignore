@@ -6,4 +6,6 @@ output/*.json
 *.mp4
 *.webm
 *.mkv
+*.mov
+worker/downloads/
 .DS_Store

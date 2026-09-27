@@ -1,5 +1,7 @@
 opencv-python-headless>=4.10.0
 numpy>=1.26.0
 pydantic>=2.9.0
-paddleocr>=2.9.0
-paddlepaddle>=2.6.0
+--extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+paddlepaddle-gpu==3.3.0
+paddleocr>=3.0.0,<4
+yt-dlp>=2024.8.6

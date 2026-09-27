@@ -1,0 +1,12 @@
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+*.mp4
+*.webm
+*.mkv
+*.mov
+worker/downloads
+worker/output/*.json
+.git
+.DS_Store

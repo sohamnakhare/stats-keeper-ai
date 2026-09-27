@@ -27,6 +27,61 @@ def load_roi_config(config_path: Path | str) -> ScoreboardROIConfig:
     return ScoreboardROIConfig.model_validate(data)
 
 
+def remap_region_into_scorebug(
+    inner: ScoreboardRegion,
+    scorebug: ScoreboardRegion,
+) -> ScoreboardRegion:
+    """Convert a full-frame box into coordinates relative to the scorebug crop."""
+    return ScoreboardRegion(
+        x=(inner.x - scorebug.x) / scorebug.w,
+        y=(inner.y - scorebug.y) / scorebug.h,
+        w=inner.w / scorebug.w,
+        h=inner.h / scorebug.h,
+    )
+
+
+def _region_inside_scorebug(
+    inner: ScoreboardRegion,
+    scorebug: ScoreboardRegion,
+    eps: float = 1e-6,
+) -> bool:
+    return (
+        inner.x >= scorebug.x - eps
+        and inner.y >= scorebug.y - eps
+        and inner.x + inner.w <= scorebug.x + scorebug.w + eps
+        and inner.y + inner.h <= scorebug.y + scorebug.h + eps
+    )
+
+
+def prepare_scorebug_regions(
+    regions: dict[str, ScoreboardRegion],
+) -> tuple[ScoreboardRegion, dict[str, ScoreboardRegion]]:
+    """Split the scorebug crop from inner OCR regions.
+
+    Inner boxes stay in the returned dict, remapped into the scorebug crop.
+    """
+    if "scorebug" not in regions:
+        raise ValueError("ROI config must include 'scorebug' region")
+
+    scorebug = regions["scorebug"]
+    if scorebug.w <= 0 or scorebug.h <= 0:
+        raise ValueError("scorebug region must have positive width and height")
+
+    if "game_clock" not in regions:
+        raise ValueError("ROI config must include 'game_clock' region")
+
+    inner: dict[str, ScoreboardRegion] = {}
+    for name, region in regions.items():
+        if name == "scorebug":
+            continue
+        if region.w <= 0 or region.h <= 0:
+            raise ValueError(f"Region '{name}' must have positive width and height")
+        if not _region_inside_scorebug(region, scorebug):
+            raise ValueError(f"Region '{name}' must lie inside the scorebug")
+        inner[name] = remap_region_into_scorebug(region, scorebug)
+    return scorebug, inner
+
+
 def _clock_to_seconds(clock: str | None) -> int | None:
     if clock is None:
         return None
@@ -239,12 +294,31 @@ def process_video_to_scoreboard_track(
     """Process a video and extract scoreboard data using OCR."""
     video_path = Path(video_path)
     roi_config = load_roi_config(roi_config_path)
+    scorebug, regions = prepare_scorebug_regions(dict(roi_config.regions))
+    return ocr_scorebug_track(
+        video_path=video_path,
+        scorebug=scorebug,
+        regions=regions,
+        sample_fps=sample_fps,
+        gpu=gpu,
+        smooth=smooth,
+        include_raw_ocr=include_raw_ocr,
+        on_progress=on_progress,
+    )
 
-    regions: dict[str, ScoreboardRegion] = dict(roi_config.regions)
 
-    if "game_clock" not in regions:
-        raise ValueError("ROI config must include 'game_clock' region")
-
+def ocr_scorebug_track(
+    video_path: Path | str,
+    scorebug: ScoreboardRegion,
+    regions: dict[str, ScoreboardRegion],
+    sample_fps: float = 1.0,
+    gpu: bool = True,
+    smooth: bool = True,
+    include_raw_ocr: bool = False,
+    on_progress: Callable[[int], None] | None = None,
+) -> ScoreboardTrackArtifact:
+    """OCR crop-relative regions inside an already chosen scorebug crop."""
+    video_path = Path(video_path)
     reader = ScoreboardOCRReader(gpu=gpu)
 
     cap = cv2.VideoCapture(str(video_path))
@@ -259,7 +333,8 @@ def process_video_to_scoreboard_track(
     sample_count = 0
 
     for frame in iter_sampled_frames(str(video_path), sample_fps=sample_fps):
-        parsed = reader.read_and_parse(frame.bgr, regions)
+        cropped = reader.crop_region(frame.bgr, scorebug)
+        parsed = reader.read_and_parse(cropped, regions)
         raw = parsed.get("raw_ocr") or {}
         candidates = game_clock_candidates(raw.get("game_clock"))
 

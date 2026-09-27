@@ -1,0 +1,59 @@
+name: pbp-video-mapper
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Test
+        working-directory: pbp-video-mapper
+        run: |
+          pip install pytest "opencv-python-headless>=4.10.0" "numpy>=1.26.0" "pydantic>=2.9.0"
+          pytest
+
+  build:
+    needs: test
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require SCOREBUG_API_BASE
+        env:
+          SCOREBUG_API_BASE: ${{ vars.SCOREBUG_API_BASE }}
+        run: test -n "$SCOREBUG_API_BASE"
+
+      - name: Image name
+        id: image
+        run: |
+          repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=ghcr.io/${repo}/pbp-video-mapper" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: pbp-video-mapper
+          push: true
+          build-args: |
+            SCOREBUG_API_BASE=${{ vars.SCOREBUG_API_BASE }}
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.short_sha }}
+            ${{ steps.image.outputs.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
