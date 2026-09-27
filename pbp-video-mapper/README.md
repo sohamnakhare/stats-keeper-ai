@@ -95,6 +95,14 @@ On the GPU droplet (NVIDIA driver >= 550.54.14), with Docker and the NVIDIA cont
 ```bash
 docker login ghcr.io
 export PBP_IMAGE=ghcr.io/<owner>/<repo>/pbp-video-mapper
+export SCOREBUG_RESULT_WEBHOOK_URL=https://your-app.example/hooks/scorebug
 docker compose pull
-docker compose run --rm worker --id VIDEO_ID
+docker compose up -d
+curl -X POST http://localhost:8000/detect -H 'Content-Type: application/json' -d '{"id":"VIDEO_ID"}'
+```
+
+`docker compose up` serves the API on port 8000. `POST /detect` starts one OCR job and returns immediately. When the job finishes, the worker POSTs the track JSON to `SCOREBUG_RESULT_WEBHOOK_URL`. A one-off CLI run overrides that entrypoint:
+
+```bash
+docker compose run --rm --entrypoint python worker worker/scripts/detect_scoreboard.py --id VIDEO_ID
 ```

@@ -316,10 +316,12 @@ def ocr_scorebug_track(
     smooth: bool = True,
     include_raw_ocr: bool = False,
     on_progress: Callable[[int], None] | None = None,
+    reader: ScoreboardOCRReader | None = None,
 ) -> ScoreboardTrackArtifact:
     """OCR crop-relative regions inside an already chosen scorebug crop."""
     video_path = Path(video_path)
-    reader = ScoreboardOCRReader(gpu=gpu)
+    if reader is None:
+        reader = ScoreboardOCRReader(gpu=gpu)
 
     cap = cv2.VideoCapture(str(video_path))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))

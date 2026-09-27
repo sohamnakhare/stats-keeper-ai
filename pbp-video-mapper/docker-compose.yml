@@ -2,6 +2,11 @@ services:
   worker:
     image: ${PBP_IMAGE:?set PBP_IMAGE to ghcr.io/<owner>/<repo>/pbp-video-mapper}:${IMAGE_TAG:-latest}
     gpus: all
+    entrypoint: ["python", "-m", "uvicorn", "worker.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      SCOREBUG_RESULT_WEBHOOK_URL: ${SCOREBUG_RESULT_WEBHOOK_URL:-}
     volumes:
       - downloads:/app/worker/downloads
       - output:/app/worker/output
