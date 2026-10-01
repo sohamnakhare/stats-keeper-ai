@@ -1,0 +1,8 @@
+pyobjc-framework-Vision
+pyobjc-framework-Cocoa
+opencv-python-headless>=4.10.0
+numpy>=1.26.0
+pydantic>=2.9.0
+yt-dlp>=2024.8.6
+fastapi>=0.115.0
+uvicorn>=0.32.0

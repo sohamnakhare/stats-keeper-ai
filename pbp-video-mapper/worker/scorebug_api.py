@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import urllib.error
 import urllib.request
@@ -10,6 +11,8 @@ from dataclasses import dataclass
 from urllib.parse import quote
 
 from .schemas import ScoreboardRegion
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_API_BASE = "http://localhost:3000"
 
@@ -30,6 +33,17 @@ class ScorebugVideo:
     fields: dict[str, ScoreboardRegion]
 
 
+def score_timeline_url(video_id: str) -> str:
+    """Return the score-timeline URL for a finished track."""
+    video_id = video_id.strip()
+    if not video_id:
+        raise ValueError("Video id is required")
+    return (
+        f"{scorebug_api_base()}/api/scorebug-videos/"
+        f"{quote(video_id, safe='')}/score-timeline"
+    )
+
+
 def scorebug_api_base() -> str:
     """Return the scorebug API origin.
 
@@ -39,6 +53,48 @@ def scorebug_api_base() -> str:
     configured = os.environ.get("SCOREBUG_API_BASE", "").strip()
     base = configured or _DEFAULT_API_BASE
     return base.rstrip("/")
+
+
+def claim_next_scorebug_video() -> str | None:
+    """POST /api/scorebug-videos/next and return the claimed video id.
+
+    ``None`` means the queue is empty (HTTP 204) or the claim could not be
+    completed and should be tried again.
+    """
+    url = f"{scorebug_api_base()}/api/scorebug-videos/next"
+    request = urllib.request.Request(
+        url,
+        data=b"{}",
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            if getattr(response, "status", 200) == 204:
+                return None
+            raw = response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 204:
+            return None
+        logger.error("Scorebug next claim failed (%s)", exc.code)
+        return None
+    except Exception as exc:
+        logger.error("Scorebug next claim failed: %s", exc)
+        return None
+
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.error("Scorebug next claim returned invalid JSON")
+        return None
+    video = payload.get("video") if isinstance(payload, dict) else None
+    video_id = video.get("id") if isinstance(video, dict) else None
+    if not isinstance(video_id, str) or not video_id.strip():
+        logger.error("Scorebug next claim did not include a video id")
+        return None
+    return video_id.strip()
 
 
 def fetch_scorebug_video(video_id: str) -> ScorebugVideo:

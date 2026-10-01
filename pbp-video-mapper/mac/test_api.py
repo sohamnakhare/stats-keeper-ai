@@ -1,4 +1,4 @@
-"""HTTP tests for the one-at-a-time detect API."""
+"""HTTP tests for the macOS Vision detect API."""
 
 from __future__ import annotations
 
@@ -6,26 +6,50 @@ import json
 import threading
 from pathlib import Path
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from worker.api import app, reset_state
-from worker.schemas import ScoreboardRegion, ScoreboardTrackArtifact
+from mac.api import app, reset_state
+from worker.extract_frames import SampledFrame
+from worker.schemas import ScoreboardRegion
 from worker.scorebug_api import ScorebugVideo
 
 
 @pytest.fixture(autouse=True)
-def _clean_jobs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def _clean_jobs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     reset_state()
-    monkeypatch.setattr("worker.api.OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr("mac.api.OUTPUT_DIR", tmp_path)
     monkeypatch.setenv("SCOREBUG_API_BASE", "http://localhost:3000")
     monkeypatch.setenv("SCOREBUG_PULL_QUEUE", "0")
-    monkeypatch.setattr(
-        "worker.api.urllib.request.urlopen",
-        lambda request, timeout=30: _Response(),
-    )
+    monkeypatch.setattr("mac.api.urllib.request.urlopen", lambda request, timeout=30: _Response())
     yield
     reset_state()
+
+
+def _region(x: float, y: float, w: float, h: float) -> ScoreboardRegion:
+    return ScoreboardRegion(x=x, y=y, w=w, h=h)
+
+
+def _video() -> ScorebugVideo:
+    return ScorebugVideo(
+        video_url="https://cdn.example.com/game.mp4",
+        scorebug=_region(0.1, 0.8, 0.4, 0.15),
+        fields={
+            "game_clock": _region(0.05, 0.2, 0.2, 0.5),
+            "home_score": _region(0.3, 0.2, 0.2, 0.5),
+            "away_score": _region(0.55, 0.2, 0.2, 0.5),
+        },
+    )
+
+
+def _frames(url: str, sample_fps: float = 1.0, scorebug: ScoreboardRegion | None = None):
+    image = np.zeros((40, 80, 3), dtype=np.uint8)
+    yield SampledFrame(index=0, t_sec=1.0, bgr=image)
+
+
+def _raw_regions(image: np.ndarray, regions: dict) -> dict[str, str]:
+    return {"game_clock": "9:58", "home_score": "12", "away_score": "8"}
 
 
 class _Response:
@@ -37,35 +61,6 @@ class _Response:
 
     def read(self) -> bytes:
         return b""
-
-
-def _region(x: float, y: float, w: float, h: float) -> ScoreboardRegion:
-    return ScoreboardRegion(x=x, y=y, w=w, h=h)
-
-
-def _video() -> ScorebugVideo:
-    return ScorebugVideo(
-        video_url="https://cdn.example.com/game.mp4",
-        scorebug=_region(0.1, 0.8, 0.4, 0.15),
-        fields={"game_clock": _region(0.05, 0.2, 0.2, 0.5)},
-    )
-
-
-def _artifact() -> ScoreboardTrackArtifact:
-    return ScoreboardTrackArtifact(
-        video_path="/tmp/game.mp4",
-        sample_fps=1.0,
-        total_frames=2,
-        readings=[],
-        game_clock_to_video=[],
-    )
-
-
-def test_health() -> None:
-    client = TestClient(app)
-    response = client.get("/health")
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
 
 
 def test_detect_finishes_and_posts_webhook(
@@ -84,13 +79,11 @@ def test_detect_finishes_and_posts_webhook(
         )
         return _Response()
 
-    monkeypatch.setattr("worker.api.fetch_scorebug_video", lambda video_id: _video())
-    monkeypatch.setattr("worker.api.get_reader", lambda gpu: object())
-    monkeypatch.setattr(
-        "worker.api.ocr_scorebug_track",
-        lambda **kwargs: _artifact(),
-    )
-    monkeypatch.setattr("worker.api.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("mac.api.fetch_scorebug_video", lambda video_id: _video())
+    monkeypatch.setattr("mac.track.iter_remote_frames", _frames)
+    monkeypatch.setattr("mac.track.remote_duration_seconds", lambda url: 1.0)
+    monkeypatch.setattr("mac.vision_ocr.recognize_regions", _raw_regions)
+    monkeypatch.setattr("mac.api.urllib.request.urlopen", fake_urlopen)
 
     client = TestClient(app)
     response = client.post("/detect", json={"id": "vid-1", "fps": 2.0})
@@ -98,13 +91,15 @@ def test_detect_finishes_and_posts_webhook(
     body = response.json()
     assert body["status"] == "done"
     assert body["videoId"] == "vid-1"
-    assert body["result"]["videoPath"] == "/tmp/game.mp4"
-    assert body["result"]["sampleFps"] == 1.0
+    assert body["result"]["totalFrames"] == 1
+    assert body["result"]["readings"][0]["homeScore"] == 12
+    assert body["result"]["readings"][0]["gameClock"] == "9:58"
+    assert body["result"]["gameClockToVideo"][0]["gameClock"] == "9:58"
     assert posted == [
         ("http://localhost:3000/api/scorebug-videos/vid-1/score-timeline", body)
     ]
     saved = json.loads((tmp_path / f"{body['jobId']}.json").read_text())
-    assert saved["videoPath"] == "/tmp/game.mp4"
+    assert saved["videoPath"] == "https://cdn.example.com/game.mp4"
 
 
 def test_second_detect_is_rejected_while_running(
@@ -113,14 +108,15 @@ def test_second_detect_is_rejected_while_running(
     started = threading.Event()
     release = threading.Event()
 
-    def block_ocr(**kwargs: object) -> ScoreboardTrackArtifact:
+    def block_regions(image: np.ndarray, regions: dict) -> dict[str, str]:
         started.set()
         release.wait(timeout=2)
-        return _artifact()
+        return _raw_regions(image, regions)
 
-    monkeypatch.setattr("worker.api.fetch_scorebug_video", lambda video_id: _video())
-    monkeypatch.setattr("worker.api.get_reader", lambda gpu: object())
-    monkeypatch.setattr("worker.api.ocr_scorebug_track", block_ocr)
+    monkeypatch.setattr("mac.api.fetch_scorebug_video", lambda video_id: _video())
+    monkeypatch.setattr("mac.track.iter_remote_frames", _frames)
+    monkeypatch.setattr("mac.track.remote_duration_seconds", lambda url: 1.0)
+    monkeypatch.setattr("mac.vision_ocr.recognize_regions", block_regions)
 
     client = TestClient(app)
     finished: dict[str, object] = {}
@@ -157,8 +153,8 @@ def test_failed_job_posts_error_webhook(monkeypatch: pytest.MonkeyPatch) -> None
     def fail_fetch(video_id: str) -> ScorebugVideo:
         raise RuntimeError(f"missing {video_id}")
 
-    monkeypatch.setattr("worker.api.fetch_scorebug_video", fail_fetch)
-    monkeypatch.setattr("worker.api.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("mac.api.fetch_scorebug_video", fail_fetch)
+    monkeypatch.setattr("mac.api.urllib.request.urlopen", fake_urlopen)
 
     client = TestClient(app)
     response = client.post("/detect", json={"id": "vid-9"})
@@ -170,6 +166,30 @@ def test_failed_job_posts_error_webhook(monkeypatch: pytest.MonkeyPatch) -> None
     assert posted == [
         ("http://localhost:3000/api/scorebug-videos/vid-9/score-timeline", body)
     ]
+
+
+def test_choose_text_keeps_a_clock_instead_of_a_neighboring_score() -> None:
+    from mac.vision_ocr import _choose_text, _to_scorebug, parse_score
+
+    assert _choose_text("game_clock", [("12", 0.95), ("9:58", 0.4)]) == "9:58"
+    assert parse_score("1O") == 10
+    home = ScoreboardRegion(x=0.6, y=0.0, w=0.4, h=1.0)
+    assert _to_scorebug((0.0, 0.0, 1.0, 1.0), home) == (0.6, 0.0, 0.4, 1.0)
+
+
+def test_draw_debug_outlines_markings_and_vision_text() -> None:
+    from mac.vision_ocr import draw_debug
+
+    image = np.zeros((40, 200, 3), dtype=np.uint8)
+    regions = {"home_score": ScoreboardRegion(x=0.1, y=0.25, w=0.2, h=0.5)}
+    drawn = draw_debug(
+        image,
+        regions,
+        [("4|5", 0.9, (0.5, 0.25, 0.2, 0.5))],
+    )
+    assert drawn.shape[0] == 160
+    assert tuple(int(value) for value in drawn[80, 80]) == (0, 220, 0)
+    assert tuple(int(value) for value in drawn[80, 400]) == (0, 140, 255)
 
 
 def test_unknown_job_is_not_found() -> None:

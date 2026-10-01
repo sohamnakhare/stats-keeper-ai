@@ -8,4 +8,5 @@ output/*.json
 *.mkv
 *.mov
 worker/downloads/
+worker/output/vision-crops/
 .DS_Store

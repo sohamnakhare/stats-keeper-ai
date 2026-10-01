@@ -1,4 +1,4 @@
-"""HTTP API that runs one scorebug OCR job at a time."""
+"""macOS HTTP API that runs one Vision OCR job at a time."""
 
 from __future__ import annotations
 
@@ -16,14 +16,36 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from .detect_queue import start_detect_queue
-from .ocr_reader import ScoreboardOCRReader
-from .scoreboard_detector import ocr_scorebug_track, save_scoreboard_track
-from .scorebug_api import fetch_scorebug_video, score_timeline_url
+from mac import vision_ocr
+from mac.track import build_track
+from worker.detect_queue import start_detect_queue
+from worker.scorebug_api import fetch_scorebug_video, score_timeline_url
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_DIR = Path(__file__).resolve().parent / "output"
+
+def _configure_logging() -> None:
+    """Show Vision read logs under uvicorn, which only configures its own logger."""
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    for name in (
+        "mac.api",
+        "mac.track",
+        "mac.vision_ocr",
+        "worker.detect_queue",
+        "worker.scorebug_api",
+    ):
+        log = logging.getLogger(name)
+        log.setLevel(logging.INFO)
+        if not any(isinstance(item, logging.StreamHandler) for item in log.handlers):
+            log.addHandler(handler)
+        log.propagate = False
+
+
+_configure_logging()
+
+PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+OUTPUT_DIR = PACKAGE_ROOT / "worker" / "output"
 
 
 @asynccontextmanager
@@ -40,13 +62,11 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
         thread.join(timeout=2)
 
 
-app = FastAPI(title="PBP Video Mapper", lifespan=_lifespan)
+app = FastAPI(title="PBP Video Mapper (Vision)", lifespan=_lifespan)
 
 _lock = threading.Lock()
-_jobs: dict[str, "Job"] = {}
+_jobs: dict[str, Job] = {}
 _running_id: str | None = None
-_reader: ScoreboardOCRReader | None = None
-_reader_gpu: bool | None = None
 
 
 @dataclass
@@ -61,7 +81,6 @@ class Job:
     error: str | None = None
     webhook_error: str | None = None
     fps: float = 1.0
-    gpu: bool = True
     debug: bool = False
     done: threading.Event = field(default_factory=threading.Event)
 
@@ -71,7 +90,6 @@ class DetectRequest(BaseModel):
 
     video_id: str = Field(alias="id")
     fps: float = Field(default=1.0, gt=0)
-    gpu: bool = True
     debug: bool = False
 
     model_config = {"populate_by_name": True}
@@ -85,28 +103,13 @@ class DetectRequest(BaseModel):
         return stripped
 
 
-def get_reader(gpu: bool) -> ScoreboardOCRReader:
-    """Return the process-wide OCR reader, creating it on first use."""
-    global _reader, _reader_gpu
-    with _lock:
-        if _reader is not None and _reader_gpu == gpu:
-            return _reader
-    created = ScoreboardOCRReader(gpu=gpu)
-    with _lock:
-        if _reader is None or _reader_gpu != gpu:
-            _reader = created
-            _reader_gpu = gpu
-        return _reader
-
-
 def reset_state() -> None:
-    """Drop in-memory jobs and the cached reader. Used by tests."""
-    global _running_id, _reader, _reader_gpu
+    """Drop in-memory jobs and the cached recognizer. Used by tests."""
+    global _running_id
     with _lock:
         _jobs.clear()
         _running_id = None
-        _reader = None
-        _reader_gpu = None
+    vision_ocr.reset_recognizer()
 
 
 def _job_body(job: Job) -> dict:
@@ -165,8 +168,7 @@ def _set_progress(job_id: str, progress: int) -> None:
 def _finish(job_id: str, *, status: str, result: dict | None, error: str | None) -> None:
     global _running_id
     with _lock:
-        job = _jobs[job_id]
-        video_id = job.video_id
+        video_id = _jobs[job_id].video_id
     payload: dict = {
         "jobId": job_id,
         "videoId": video_id,
@@ -194,24 +196,26 @@ def _run_job(job_id: str) -> None:
         job = _jobs[job_id]
         video_id = job.video_id
         fps = job.fps
-        gpu = job.gpu
         debug = job.debug
+    logger.info("detect start video=%s fps=%s", video_id, fps)
     try:
         video = fetch_scorebug_video(video_id)
-        artifact = ocr_scorebug_track(
+        crop_dir = OUTPUT_DIR / "vision-crops" / job_id
+        artifact = build_track(
             video_path=video.video_url,
             scorebug=video.scorebug,
             regions=video.fields,
             sample_fps=fps,
-            gpu=gpu,
             include_raw_ocr=debug,
             on_progress=lambda pct: _set_progress(job_id, pct),
-            reader=get_reader(gpu),
+            recognizer=vision_ocr.get_recognizer(),
+            crop_dir=crop_dir,
             video_url=video.video_url,
         )
         output = OUTPUT_DIR / f"{job_id}.json"
         output.parent.mkdir(parents=True, exist_ok=True)
-        save_scoreboard_track(artifact, output)
+        with output.open("w") as handle:
+            json.dump(artifact.model_dump(by_alias=True), handle, indent=2)
         _finish(
             job_id,
             status="done",
@@ -219,7 +223,7 @@ def _run_job(job_id: str) -> None:
             error=None,
         )
     except Exception as exc:
-        logger.exception("Detection failed for %s", video_id)
+        logger.exception("Vision detection failed for %s", video_id)
         _finish(job_id, status="failed", result=None, error=str(exc))
 
 
@@ -247,20 +251,13 @@ def _detection_busy() -> bool:
         return _running_id is not None
 
 
-def _register_job(
-    video_id: str,
-    *,
-    fps: float = 1.0,
-    gpu: bool = True,
-    debug: bool = False,
-) -> Job | None:
+def _register_job(video_id: str, *, fps: float = 1.0, debug: bool = False) -> Job | None:
     """Reserve the single running slot, or return None when one is taken."""
     global _running_id
     job = Job(
         job_id=uuid.uuid4().hex,
         video_id=video_id,
         fps=fps,
-        gpu=gpu,
         debug=debug,
     )
     with _lock:
@@ -282,13 +279,8 @@ def _run_claimed_video(video_id: str) -> bool:
 
 @app.post("/detect")
 def detect(body: DetectRequest) -> dict:
-    """Run OCR for a scorebug video id and return the webhook payload."""
-    job = _register_job(
-        body.video_id,
-        fps=body.fps,
-        gpu=body.gpu,
-        debug=body.debug,
-    )
+    """Run Vision OCR for a scorebug video id and return the webhook payload."""
+    job = _register_job(body.video_id, fps=body.fps, debug=body.debug)
     if job is None:
         raise HTTPException(
             status_code=409,

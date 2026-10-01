@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
+import subprocess
+import sys
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -29,8 +33,81 @@ _CONTENT_TYPE_EXT = {
     "video/quicktime": ".mov",
 }
 
-# Single file OpenCV can open. Avoids a separate audio merge.
-_YTDLP_FORMAT = "bv*[ext=mp4]/b[ext=mp4]/bv*/b"
+_DEFAULT_MAX_HEIGHT = 720
+_DEFAULT_CONCURRENT_FRAGMENTS = 16
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def max_video_height() -> int:
+    """Tallest YouTube frame to fetch. ``SCOREBUG_MAX_HEIGHT`` overrides 720."""
+    return _positive_int_env("SCOREBUG_MAX_HEIGHT", _DEFAULT_MAX_HEIGHT)
+
+
+def concurrent_fragment_count() -> int:
+    """Parallel fragment or HTTP connections. Defaults to 16."""
+    return _positive_int_env(
+        "SCOREBUG_CONCURRENT_FRAGMENTS",
+        _DEFAULT_CONCURRENT_FRAGMENTS,
+    )
+
+
+def youtube_format(max_height: int | None = None) -> str:
+    """Video-only YouTube format at or below ``max_height``. No audio."""
+    height = max_video_height() if max_height is None else max_height
+    cap = f"height<={height}"
+    return f"bv*[{cap}][ext=mp4]/b[{cap}][ext=mp4]/bv*[{cap}]/b[{cap}]"
+
+
+def ytdlp_argv() -> list[str]:
+    """Prefer the yt-dlp executable, otherwise the installed module."""
+    if shutil.which("yt-dlp"):
+        return ["yt-dlp"]
+    return [sys.executable, "-m", "yt_dlp"]
+
+
+def youtube_stream_command(url: str) -> list[str]:
+    """yt-dlp args that write a capped video stream to stdout."""
+    return [
+        *ytdlp_argv(),
+        "-f",
+        youtube_format(),
+        "--concurrent-fragments",
+        str(concurrent_fragment_count()),
+        "-o",
+        "-",
+        "--no-playlist",
+        "--quiet",
+        "--no-warnings",
+        url,
+    ]
+
+
+def aria2c_command(url: str, dest: Path) -> list[str]:
+    """Download one file with many HTTP connections."""
+    connections = str(concurrent_fragment_count())
+    return [
+        "aria2c",
+        "-x",
+        connections,
+        "-s",
+        connections,
+        "--file-allocation=none",
+        "-o",
+        dest.name,
+        "-d",
+        str(dest.parent),
+        url,
+    ]
 
 
 class UnsupportedVideoUrl(ValueError):
@@ -120,7 +197,8 @@ def _download_youtube(url: str, directory: Path, digest: str) -> Path:
 
     outtmpl = str(directory / f"{digest}.%(ext)s")
     options = {
-        "format": _YTDLP_FORMAT,
+        "format": youtube_format(),
+        "concurrent_fragment_downloads": concurrent_fragment_count(),
         "outtmpl": outtmpl,
         "noplaylist": True,
         "quiet": True,
@@ -140,6 +218,37 @@ def _download_youtube(url: str, directory: Path, digest: str) -> Path:
     if existing is not None:
         return existing
     raise RuntimeError(f"Download finished but no video file was saved for {url}")
+
+
+def _aria2c_to(url: str, dest: Path) -> bool:
+    if shutil.which("aria2c") is None:
+        return False
+    result = subprocess.run(
+        aria2c_command(url, dest),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    return result.returncode == 0 and dest.is_file() and dest.stat().st_size > 0
+
+
+def download_for_fallback(url: str) -> Path:
+    """Download into a fresh temp directory when a stream cannot start.
+
+    The caller deletes ``path.parent`` after sampling. A plain file uses
+    aria2c when it is installed; YouTube uses the capped yt-dlp format.
+    """
+    directory = Path(tempfile.mkdtemp(prefix="scorebug-"))
+    try:
+        if classify_video_url(url) != "youtube":
+            dest = directory / "video.mp4"
+            if _aria2c_to(url, dest):
+                return dest
+            dest.unlink(missing_ok=True)
+        return download_video(url, directory)
+    except Exception:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
 
 
 def _stream_download(url: str, dest: Path) -> Path:

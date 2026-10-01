@@ -11,7 +11,6 @@ WORKER_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_ROOT = WORKER_ROOT.parent
 sys.path.insert(0, str(PACKAGE_ROOT))
 
-from worker.download_video import download_video  # noqa: E402
 from worker.scorebug_api import fetch_scorebug_video  # noqa: E402
 from worker.scoreboard_detector import (  # noqa: E402
     ocr_scorebug_track,
@@ -72,21 +71,21 @@ def main() -> None:
     args = parser.parse_args()
 
     api_video = None
+    video_url = None
+    video_path = None
     if args.id:
         try:
             api_video = fetch_scorebug_video(args.id)
-            video_path = download_video(api_video.video_url)
+            video_url = api_video.video_url
+            video_path = Path(video_url)
         except Exception as exc:
             print(str(exc), file=sys.stderr)
             sys.exit(1)
     elif args.roi is None:
         parser.error("--roi is required unless --id is set")
     elif args.url:
-        try:
-            video_path = download_video(args.url)
-        except Exception as exc:
-            print(str(exc), file=sys.stderr)
-            sys.exit(1)
+        video_url = args.url
+        video_path = Path(video_url)
     else:
         video_path = args.video
         if not video_path.exists():
@@ -120,6 +119,7 @@ def main() -> None:
             smooth=not args.no_smooth,
             include_raw_ocr=args.debug,
             on_progress=on_progress,
+            video_url=video_url,
         )
     else:
         artifact = process_video_to_scoreboard_track(
@@ -130,6 +130,7 @@ def main() -> None:
             smooth=not args.no_smooth,
             include_raw_ocr=args.debug,
             on_progress=on_progress,
+            video_url=video_url,
         )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

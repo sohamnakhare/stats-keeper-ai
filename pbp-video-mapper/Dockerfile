@@ -9,6 +9,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
+        aria2 \
         ffmpeg \
         libglib2.0-0 \
         libgomp1 \

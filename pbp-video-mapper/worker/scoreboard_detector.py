@@ -8,7 +8,11 @@ from pathlib import Path
 
 import cv2
 
-from .extract_frames import iter_sampled_frames
+from .extract_frames import (
+    iter_remote_frames,
+    iter_sampled_frames,
+    remote_duration_seconds,
+)
 from .ocr_reader import ScoreboardOCRReader, game_clock_candidates
 from .schemas import (
     GameClockMapping,
@@ -290,13 +294,13 @@ def process_video_to_scoreboard_track(
     smooth: bool = True,
     include_raw_ocr: bool = False,
     on_progress: Callable[[int], None] | None = None,
+    video_url: str | None = None,
 ) -> ScoreboardTrackArtifact:
     """Process a video and extract scoreboard data using OCR."""
-    video_path = Path(video_path)
     roi_config = load_roi_config(roi_config_path)
     scorebug, regions = prepare_scorebug_regions(dict(roi_config.regions))
     return ocr_scorebug_track(
-        video_path=video_path,
+        video_path=video_url or video_path,
         scorebug=scorebug,
         regions=regions,
         sample_fps=sample_fps,
@@ -304,6 +308,7 @@ def process_video_to_scoreboard_track(
         smooth=smooth,
         include_raw_ocr=include_raw_ocr,
         on_progress=on_progress,
+        video_url=video_url,
     )
 
 
@@ -317,25 +322,37 @@ def ocr_scorebug_track(
     include_raw_ocr: bool = False,
     on_progress: Callable[[int], None] | None = None,
     reader: ScoreboardOCRReader | None = None,
+    video_url: str | None = None,
 ) -> ScoreboardTrackArtifact:
     """OCR crop-relative regions inside an already chosen scorebug crop."""
-    video_path = Path(video_path)
     if reader is None:
         reader = ScoreboardOCRReader(gpu=gpu)
 
-    cap = cv2.VideoCapture(str(video_path))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    native_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    duration = total_frames / native_fps if native_fps > 0 else 0
-    cap.release()
+    if video_url:
+        frames = iter_remote_frames(video_url, sample_fps, scorebug)
+        duration = remote_duration_seconds(video_url) or 0
+        source = video_url
+    else:
+        video_path = Path(video_path)
+        frames = iter_sampled_frames(str(video_path), sample_fps=sample_fps)
+        cap = cv2.VideoCapture(str(video_path))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        native_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        duration = total_frames / native_fps if native_fps > 0 else 0
+        cap.release()
+        source = str(video_path)
 
     expected_samples = int(duration * sample_fps) if duration > 0 else 0
 
     readings: list[ScoreboardReading] = []
     sample_count = 0
 
-    for frame in iter_sampled_frames(str(video_path), sample_fps=sample_fps):
-        cropped = reader.crop_region(frame.bgr, scorebug)
+    for frame in frames:
+        cropped = (
+            frame.bgr
+            if video_url
+            else reader.crop_region(frame.bgr, scorebug)
+        )
         parsed = reader.read_and_parse(cropped, regions)
         raw = parsed.get("raw_ocr") or {}
         candidates = game_clock_candidates(raw.get("game_clock"))
@@ -379,7 +396,7 @@ def ocr_scorebug_track(
 
     return ScoreboardTrackArtifact(
         version="1.0.0",
-        video_path=str(video_path),
+        video_path=source,
         sample_fps=sample_fps,
         total_frames=sample_count,
         readings=readings,

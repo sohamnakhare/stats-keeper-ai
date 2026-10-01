@@ -68,7 +68,7 @@ python worker/scripts/detect_scoreboard.py \
   --output worker/output/scoreboard_track.json
 ```
 
-`--url` accepts a YouTube link (`youtube.com`, `youtu.be`, Shorts) or a direct `.mp4`, `.webm`, `.mkv`, or `.mov` link. Other http(s) links are accepted when the response is `video/*`. Downloads are saved in `worker/downloads/` and reused for the same URL. Pass one of `--url`, `--video`, or `--id`. `--roi` is required unless `--id` is set.
+`--url` accepts a YouTube link (`youtube.com`, `youtu.be`, Shorts) or a direct `.mp4`, `.webm`, `.mkv`, or `.mov` link. Other http(s) links are accepted when the response is `video/*`. A URL is read at 720p, video only, while OCR runs (`SCOREBUG_MAX_HEIGHT` overrides the cap). A local `--video` file is sampled from disk. Pass one of `--url`, `--video`, or `--id`. `--roi` is required unless `--id` is set. `ffmpeg` must be on `PATH`.
 
 Flags:
 
@@ -95,14 +95,31 @@ On the GPU droplet (NVIDIA driver >= 550.54.14), with Docker and the NVIDIA cont
 ```bash
 docker login ghcr.io
 export PBP_IMAGE=ghcr.io/<owner>/<repo>/pbp-video-mapper
-export SCOREBUG_RESULT_WEBHOOK_URL=https://your-app.example/hooks/scorebug
 docker compose pull
 docker compose up -d
 curl -X POST http://localhost:8000/detect -H 'Content-Type: application/json' -d '{"id":"VIDEO_ID"}'
 ```
 
-`docker compose up` serves the API on port 8000. `POST /detect` starts one OCR job and returns immediately. When the job finishes, the worker POSTs the track JSON to `SCOREBUG_RESULT_WEBHOOK_URL`. A one-off CLI run overrides that entrypoint:
+`docker compose up` serves the API on port 8000. `POST /detect` runs one OCR job, POSTs the track JSON to `{SCOREBUG_API_BASE}/api/scorebug-videos/{videoId}/score-timeline`, and returns that same JSON. A one-off CLI run overrides that entrypoint:
 
 ```bash
 docker compose run --rm --entrypoint python worker worker/scripts/detect_scoreboard.py --id VIDEO_ID
+```
+
+## Mac Vision API
+
+On a Mac, a separate service reads the scorebug with Apple Vision instead of Paddle. `POST /detect` posts the track JSON to `{SCOREBUG_API_BASE}/api/scorebug-videos/{videoId}/score-timeline` and returns that same JSON.
+
+```bash
+cd pbp-video-mapper
+python3 -m venv .venv-mac
+source .venv-mac/bin/activate
+python -m pip install -r requirements-mac.txt
+export SCOREBUG_API_BASE=http://localhost:3000
+# ffmpeg is required. Optional: SCOREBUG_MAX_HEIGHT=480
+python -m uvicorn mac.api:app --host 127.0.0.1 --port 8000
+```
+
+```bash
+curl -X POST http://127.0.0.1:8000/detect -H 'Content-Type: application/json' -d '{"id":"VIDEO_ID"}'
 ```
