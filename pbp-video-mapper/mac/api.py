@@ -211,6 +211,7 @@ def _run_job(job_id: str) -> None:
             recognizer=vision_ocr.get_recognizer(),
             crop_dir=crop_dir,
             video_url=video.video_url,
+            end_sec=video.game_end_sec,
         )
         output = OUTPUT_DIR / f"{job_id}.json"
         output.parent.mkdir(parents=True, exist_ok=True)

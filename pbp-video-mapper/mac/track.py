@@ -14,6 +14,7 @@ from mac import vision_ocr
 from worker.extract_frames import (
     iter_remote_frames,
     iter_sampled_frames,
+    playback_span_seconds,
     remote_duration_seconds,
 )
 from worker.schemas import (
@@ -53,7 +54,11 @@ def _clock_mapping(readings: list[ScoreboardReading]) -> list[GameClockMapping]:
     ]
 
 
-def _expected_samples(video_path: Path, sample_fps: float) -> int:
+def _expected_samples(
+    video_path: Path,
+    sample_fps: float,
+    end_sec: float | None = None,
+) -> int:
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
         return 0
@@ -62,7 +67,8 @@ def _expected_samples(video_path: Path, sample_fps: float) -> int:
     capture.release()
     if native_fps <= 0 or total_frames <= 0:
         return 0
-    return int((total_frames / native_fps) * sample_fps)
+    duration = total_frames / native_fps
+    return int(playback_span_seconds(duration, end_sec=end_sec) * sample_fps)
 
 
 def build_track(
@@ -75,18 +81,24 @@ def build_track(
     recognizer: vision_ocr.VisionRecognizer | None = None,
     crop_dir: Path | None = None,
     video_url: str | None = None,
+    end_sec: float | None = None,
 ) -> ScoreboardTrackArtifact:
     """Sample a video and read scorebug fields with Apple Vision."""
     path = Path(video_path)
     reader = recognizer if recognizer is not None else vision_ocr.get_recognizer()
     if video_url:
-        frames = iter_remote_frames(video_url, sample_fps, scorebug)
+        frames = iter_remote_frames(
+            video_url, sample_fps, scorebug, end_sec=end_sec
+        )
         duration = remote_duration_seconds(video_url) or 0
-        expected = int(duration * sample_fps) if duration > 0 else 0
+        remaining = playback_span_seconds(duration, end_sec=end_sec)
+        expected = int(remaining * sample_fps) if remaining > 0 else 0
         source = video_url
     else:
-        frames = iter_sampled_frames(str(path), sample_fps=sample_fps)
-        expected = _expected_samples(path, sample_fps)
+        frames = iter_sampled_frames(
+            str(path), sample_fps=sample_fps, end_sec=end_sec
+        )
+        expected = _expected_samples(path, sample_fps, end_sec)
         source = str(path)
     readings: list[ScoreboardReading] = []
     if crop_dir is not None:

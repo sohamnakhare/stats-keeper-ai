@@ -11,6 +11,7 @@ import cv2
 from .extract_frames import (
     iter_remote_frames,
     iter_sampled_frames,
+    playback_span_seconds,
     remote_duration_seconds,
 )
 from .ocr_reader import ScoreboardOCRReader, game_clock_candidates
@@ -323,18 +324,23 @@ def ocr_scorebug_track(
     on_progress: Callable[[int], None] | None = None,
     reader: ScoreboardOCRReader | None = None,
     video_url: str | None = None,
+    end_sec: float | None = None,
 ) -> ScoreboardTrackArtifact:
     """OCR crop-relative regions inside an already chosen scorebug crop."""
     if reader is None:
         reader = ScoreboardOCRReader(gpu=gpu)
 
     if video_url:
-        frames = iter_remote_frames(video_url, sample_fps, scorebug)
+        frames = iter_remote_frames(
+            video_url, sample_fps, scorebug, end_sec=end_sec
+        )
         duration = remote_duration_seconds(video_url) or 0
         source = video_url
     else:
         video_path = Path(video_path)
-        frames = iter_sampled_frames(str(video_path), sample_fps=sample_fps)
+        frames = iter_sampled_frames(
+            str(video_path), sample_fps=sample_fps, end_sec=end_sec
+        )
         cap = cv2.VideoCapture(str(video_path))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         native_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -342,7 +348,8 @@ def ocr_scorebug_track(
         cap.release()
         source = str(video_path)
 
-    expected_samples = int(duration * sample_fps) if duration > 0 else 0
+    remaining = playback_span_seconds(duration, end_sec=end_sec)
+    expected_samples = int(remaining * sample_fps) if remaining > 0 else 0
 
     readings: list[ScoreboardReading] = []
     sample_count = 0

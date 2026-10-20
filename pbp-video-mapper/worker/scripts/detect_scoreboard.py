@@ -103,6 +103,8 @@ def main() -> None:
     if api_video is not None:
         print(f"Scorebug video id: {args.id}")
         print(f"Fields: {', '.join(api_video.fields)}")
+        if api_video.game_end_sec is not None:
+            print(f"Game end: {api_video.game_end_sec:g}s")
     else:
         print(f"ROI config: {args.roi}")
     print(f"Sample FPS: {args.fps}")
@@ -120,6 +122,7 @@ def main() -> None:
             include_raw_ocr=args.debug,
             on_progress=on_progress,
             video_url=video_url,
+            end_sec=api_video.game_end_sec,
         )
     else:
         artifact = process_video_to_scoreboard_track(

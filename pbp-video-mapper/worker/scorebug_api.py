@@ -31,6 +31,7 @@ class ScorebugVideo:
     video_url: str
     scorebug: ScoreboardRegion
     fields: dict[str, ScoreboardRegion]
+    game_end_sec: float | None = None
 
 
 def score_timeline_url(video_id: str) -> str:
@@ -154,7 +155,21 @@ def parse_scorebug_video(payload: dict) -> ScorebugVideo:
         video_url=video_url.strip(),
         scorebug=scorebug,
         fields=fields,
+        game_end_sec=_game_end_sec(video.get("gameEndSec")),
     )
+
+
+def _game_end_sec(value: object) -> float | None:
+    """Return a game-end time, or None when the field was left unset."""
+    if value is None:
+        return None
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("gameEndSec must be a number of seconds") from exc
+    if seconds < 0 or seconds != seconds:
+        raise ValueError("gameEndSec must be zero or greater")
+    return seconds
 
 
 def _region_from_box(box: object, name: str) -> ScoreboardRegion:

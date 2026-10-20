@@ -15,7 +15,14 @@ from worker.download_video import (
     youtube_format,
     youtube_stream_command,
 )
-from worker.extract_frames import ffmpeg_url_command, iter_png_frames, scorebug_crop_filter
+from worker.extract_frames import (
+    ffmpeg_url_command,
+    iter_png_frames,
+    iter_sampled_frames,
+    past_read_end,
+    playback_span_seconds,
+    scorebug_crop_filter,
+)
 from worker.schemas import ScoreboardRegion
 
 
@@ -72,6 +79,16 @@ def test_youtube_stream_fetches_fragments_in_parallel(
     assert command[fragments + 1] == "16"
     assert "height<=720" in command[command.index("-f") + 1]
     assert command[command.index("-o") + 1] == "-"
+    assert "--download-sections" not in command
+
+    started = youtube_stream_command("https://youtu.be/abc", start_sec=87)
+    assert started[started.index("--download-sections") + 1] == "*87-inf"
+
+    ended = youtube_stream_command("https://youtu.be/abc", start_sec=87, end_sec=7200)
+    assert ended[ended.index("--download-sections") + 1] == "*87-7200"
+
+    ended_from_open = youtube_stream_command("https://youtu.be/abc", end_sec=7200)
+    assert ended_from_open[ended_from_open.index("--download-sections") + 1] == "*0-7200"
 
 
 def test_aria2c_uses_the_same_connection_count(
@@ -93,6 +110,27 @@ def test_ffmpeg_crop_uses_the_scorebug_box() -> None:
     command = ffmpeg_url_command("https://cdn.example.com/game.mp4", 1.0, region)
     assert command[0] == "ffmpeg"
     assert filt in command
+    assert "-ss" not in command
+
+    started = ffmpeg_url_command(
+        "https://cdn.example.com/game.mp4",
+        1.0,
+        region,
+        start_sec=87,
+    )
+    assert started[started.index("-ss") + 1] == "87"
+    assert started.index("-ss") < started.index("-i")
+    assert "-t" not in started
+
+    ended = ffmpeg_url_command(
+        "https://cdn.example.com/game.mp4",
+        1.0,
+        region,
+        start_sec=87,
+        end_sec=7200,
+    )
+    assert ended[ended.index("-t") + 1] == "7113"
+    assert ended.index("-i") < ended.index("-t")
 
 
 def test_png_stream_yields_frames() -> None:
@@ -122,3 +160,33 @@ def test_download_reuses_existing_file(tmp_path) -> None:
     existing.write_bytes(b"video")
 
     assert download_video(url, tmp_path) == existing
+
+
+def test_playback_span_stops_at_game_end() -> None:
+    assert playback_span_seconds(8000, 87, 7200) == pytest.approx(7113)
+    assert playback_span_seconds(0, 87, 7200) == pytest.approx(7113)
+    assert playback_span_seconds(8000, 87, None) == pytest.approx(7913)
+    assert past_read_end(7200, 7200) is False
+    assert past_read_end(7200.001, 7200) is True
+    assert past_read_end(9000, None) is False
+
+
+def test_sampled_frames_stop_at_game_end(tmp_path) -> None:
+    import cv2
+    import numpy as np
+
+    path = tmp_path / "clip.avi"
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 10.0, (16, 16))
+    if not writer.isOpened():
+        pytest.skip("opencv cannot write a test video")
+    for index in range(40):
+        writer.write(np.full((16, 16, 3), index, dtype=np.uint8))
+    writer.release()
+
+    times = [
+        frame.t_sec
+        for frame in iter_sampled_frames(str(path), sample_fps=10, start_sec=0.5, end_sec=1.2)
+    ]
+    assert times[0] == pytest.approx(0.5)
+    assert times[-1] == pytest.approx(1.2)
+    assert all(t_sec <= 1.2 for t_sec in times)

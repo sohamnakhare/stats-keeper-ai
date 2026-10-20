@@ -33,10 +33,42 @@ class SampledFrame:
     bgr: object  # numpy ndarray; typed loosely to avoid import in stubs
 
 
+def past_read_end(t_sec: float, end_sec: float | None) -> bool:
+    """True when this sample is after the game-end cutoff."""
+    return end_sec is not None and t_sec > end_sec
+
+
+def playback_span_seconds(
+    duration_sec: float,
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
+) -> float:
+    """Seconds of video that will be read, for progress estimates."""
+    origin = max(0.0, start_sec)
+    if end_sec is not None:
+        cap = end_sec
+        if duration_sec > 0:
+            cap = min(cap, duration_sec)
+        return max(0.0, cap - origin)
+    if duration_sec > 0:
+        return max(0.0, duration_sec - origin)
+    return 0.0
+
+
+def output_duration_sec(start_sec: float, end_sec: float | None) -> float | None:
+    """ffmpeg ``-t`` span after a seek, or None when the read runs to the end."""
+    if end_sec is None:
+        return None
+    span = end_sec - max(0.0, start_sec)
+    return span if span > 0 else None
+
+
 def iter_sampled_frames(
     video_path: str,
     sample_fps: float = 10.0,
     max_width: int = 1280,
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
 ) -> Iterator[SampledFrame]:
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -51,14 +83,20 @@ def iter_sampled_frames(
 
     frame_idx = 0
     sample_idx = 0
+    origin = max(0.0, start_sec)
 
     try:
+        if origin > 0:
+            cap.set(cv2.CAP_PROP_POS_MSEC, origin * 1000)
         while True:
             ok, frame = cap.read()
             if not ok:
                 break
 
             if frame_idx % frame_interval == 0:
+                t_sec = origin + sample_idx / sample_fps_effective
+                if past_read_end(t_sec, end_sec):
+                    break
                 height, width = frame.shape[:2]
                 if width > max_width:
                     scale = max_width / width
@@ -70,7 +108,7 @@ def iter_sampled_frames(
 
                 yield SampledFrame(
                     index=sample_idx,
-                    t_sec=sample_idx / sample_fps_effective,
+                    t_sec=t_sec,
                     bgr=frame,
                 )
                 sample_idx += 1
@@ -82,6 +120,27 @@ def iter_sampled_frames(
 
 class StreamStartError(RuntimeError):
     """ffmpeg or yt-dlp exited before producing a frame."""
+
+
+def union_region(regions: list[ScoreboardRegion]) -> ScoreboardRegion:
+    """Smallest normalized box that contains every region."""
+    if not regions:
+        raise ValueError("union requires at least one region")
+    x1 = min(region.x for region in regions)
+    y1 = min(region.y for region in regions)
+    x2 = max(region.x + region.w for region in regions)
+    y2 = max(region.y + region.h for region in regions)
+    return ScoreboardRegion(x=x1, y=y1, w=x2 - x1, h=y2 - y1)
+
+
+def region_in_parent(inner: ScoreboardRegion, parent: ScoreboardRegion) -> ScoreboardRegion:
+    """Express ``inner`` in coordinates relative to ``parent``."""
+    return ScoreboardRegion(
+        x=(inner.x - parent.x) / parent.w,
+        y=(inner.y - parent.y) / parent.h,
+        w=inner.w / parent.w,
+        h=inner.h / parent.h,
+    )
 
 
 def crop_normalized(image: np.ndarray, region: ScoreboardRegion) -> np.ndarray:
@@ -103,25 +162,39 @@ def scorebug_crop_filter(sample_fps: float, region: ScoreboardRegion) -> str:
     )
 
 
-def ffmpeg_pipe_command(sample_fps: float, region: ScoreboardRegion) -> list[str]:
+def ffmpeg_pipe_command(
+    sample_fps: float,
+    region: ScoreboardRegion,
+    duration_sec: float | None = None,
+) -> list[str]:
     """Decode a video on stdin into PNG scorebug crops on stdout."""
-    return _ffmpeg_command(["-i", "pipe:0"], sample_fps, region)
+    return _ffmpeg_command(["-i", "pipe:0"], sample_fps, region, duration_sec)
 
 
 def ffmpeg_url_command(
     url: str,
     sample_fps: float,
     region: ScoreboardRegion,
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
 ) -> list[str]:
     """Decode a remote video into PNG scorebug crops on stdout."""
-    return _ffmpeg_command(["-i", url], sample_fps, region)
+    seek = ["-ss", f"{start_sec:g}"] if start_sec > 0 else []
+    return _ffmpeg_command(
+        [*seek, "-i", url],
+        sample_fps,
+        region,
+        output_duration_sec(start_sec, end_sec),
+    )
 
 
 def _ffmpeg_command(
     input_args: list[str],
     sample_fps: float,
     region: ScoreboardRegion,
+    duration_sec: float | None = None,
 ) -> list[str]:
+    limit = ["-t", f"{duration_sec:g}"] if duration_sec is not None and duration_sec > 0 else []
     return [
         "ffmpeg",
         "-hide_banner",
@@ -129,6 +202,7 @@ def _ffmpeg_command(
         "error",
         *input_args,
         "-an",
+        *limit,
         "-vf",
         scorebug_crop_filter(sample_fps, region),
         "-f",
@@ -221,21 +295,28 @@ def iter_remote_frames(
     url: str,
     sample_fps: float,
     scorebug: ScoreboardRegion,
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
 ) -> Iterator[SampledFrame]:
     """Sample scorebug crops while the video is still downloading.
 
-    Each yielded frame is already the scorebug crop. When the stream cannot
-    start, the video is downloaded and then sampled locally.
+    Each yielded frame is already the scorebug crop. ``start_sec`` skips the
+    opening and ``end_sec`` stops at the game end. Timestamps stay on the full
+    video clock. When the stream cannot start, the video is downloaded and
+    then sampled locally.
     """
-    stream = _iter_piped_frames(url, sample_fps, scorebug)
+    origin = max(0.0, start_sec)
+    if end_sec is not None and end_sec <= origin:
+        return
+    stream = _iter_piped_frames(url, sample_fps, scorebug, origin, end_sec)
     try:
         first = next(stream)
     except StopIteration:
-        yield from _iter_fallback_frames(url, sample_fps, scorebug)
+        yield from _iter_fallback_frames(url, sample_fps, scorebug, origin, end_sec)
         return
     except StreamStartError as exc:
         logger.warning("stream did not start (%s); downloading %s", exc, url)
-        yield from _iter_fallback_frames(url, sample_fps, scorebug)
+        yield from _iter_fallback_frames(url, sample_fps, scorebug, origin, end_sec)
         return
     yield first
     yield from stream
@@ -245,10 +326,17 @@ def _iter_fallback_frames(
     url: str,
     sample_fps: float,
     scorebug: ScoreboardRegion,
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
 ) -> Iterator[SampledFrame]:
     path = download_for_fallback(url)
     try:
-        for frame in iter_sampled_frames(str(path), sample_fps=sample_fps):
+        for frame in iter_sampled_frames(
+            str(path),
+            sample_fps=sample_fps,
+            start_sec=start_sec,
+            end_sec=end_sec,
+        ):
             yield SampledFrame(
                 index=frame.index,
                 t_sec=frame.t_sec,
@@ -262,6 +350,8 @@ def _iter_piped_frames(
     url: str,
     sample_fps: float,
     scorebug: ScoreboardRegion,
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
 ) -> Iterator[SampledFrame]:
     kind = classify_video_url(url)
     ytdlp: subprocess.Popen[bytes] | None = None
@@ -270,11 +360,14 @@ def _iter_piped_frames(
     ffmpeg_err: list[bytes] = []
     drainers: list[threading.Thread] = []
     produced = 0
+    stopped_at_end = False
     fps = max(sample_fps, 0.1)
+    origin = max(0.0, start_sec)
+    duration = output_duration_sec(origin, end_sec)
     try:
         if kind == "youtube":
             ytdlp = subprocess.Popen(
-                youtube_stream_command(url),
+                youtube_stream_command(url, origin, end_sec),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
@@ -287,7 +380,7 @@ def _iter_piped_frames(
             ytdlp_drain.start()
             drainers.append(ytdlp_drain)
             ffmpeg = subprocess.Popen(
-                ffmpeg_pipe_command(fps, scorebug),
+                ffmpeg_pipe_command(fps, scorebug, duration),
                 stdin=ytdlp.stdout,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -295,7 +388,7 @@ def _iter_piped_frames(
             ytdlp.stdout.close()
         else:
             ffmpeg = subprocess.Popen(
-                ffmpeg_url_command(url, fps, scorebug),
+                ffmpeg_url_command(url, fps, scorebug, origin, end_sec),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
@@ -308,7 +401,11 @@ def _iter_piped_frames(
         ffmpeg_drain.start()
         drainers.append(ffmpeg_drain)
         for image in iter_png_frames(ffmpeg.stdout):
-            yield SampledFrame(index=produced, t_sec=produced / fps, bgr=image)
+            t_sec = origin + produced / fps
+            if past_read_end(t_sec, end_sec):
+                stopped_at_end = True
+                break
+            yield SampledFrame(index=produced, t_sec=t_sec, bgr=image)
             produced += 1
     except FileNotFoundError as exc:
         raise StreamStartError(str(exc)) from exc
@@ -317,7 +414,7 @@ def _iter_piped_frames(
         _stop(ytdlp)
         for drainer in drainers:
             drainer.join(timeout=1)
-    if produced == 0:
+    if produced == 0 and not stopped_at_end:
         detail = _stderr_text(ytdlp_err, ffmpeg_err) or "ffmpeg produced no frames"
         raise StreamStartError(detail)
     if ffmpeg is not None and ffmpeg.returncode not in (0, None):

@@ -208,6 +208,7 @@ def _run_job(job_id: str) -> None:
             on_progress=lambda pct: _set_progress(job_id, pct),
             reader=get_reader(gpu),
             video_url=video.video_url,
+            end_sec=video.game_end_sec,
         )
         output = OUTPUT_DIR / f"{job_id}.json"
         output.parent.mkdir(parents=True, exist_ok=True)

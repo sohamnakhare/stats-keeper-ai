@@ -43,7 +43,13 @@ def _video() -> ScorebugVideo:
     )
 
 
-def _frames(url: str, sample_fps: float = 1.0, scorebug: ScoreboardRegion | None = None):
+def _frames(
+    url: str,
+    sample_fps: float = 1.0,
+    scorebug: ScoreboardRegion | None = None,
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
+):
     image = np.zeros((40, 80, 3), dtype=np.uint8)
     yield SampledFrame(index=0, t_sec=1.0, bgr=image)
 

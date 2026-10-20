@@ -51,6 +51,33 @@ def test_parse_keeps_crop_relative_fields() -> None:
     assert video.fields["away_score"].x == pytest.approx(0.7)
 
 
+def test_parse_keeps_game_end() -> None:
+    payload = {
+        "video": {
+            **SAMPLE["video"],
+            "gameEndSec": 7200,
+        }
+    }
+    video = parse_scorebug_video(payload)
+    assert video.game_end_sec == pytest.approx(7200)
+
+
+def test_parse_leaves_game_end_unset() -> None:
+    video = parse_scorebug_video(SAMPLE)
+    assert video.game_end_sec is None
+
+
+def test_parse_rejects_bad_game_end() -> None:
+    payload = {
+        "video": {
+            **SAMPLE["video"],
+            "gameEndSec": "end",
+        }
+    }
+    with pytest.raises(ValueError, match="gameEndSec"):
+        parse_scorebug_video(payload)
+
+
 def test_parse_rejects_field_outside_crop() -> None:
     payload = {
         "video": {

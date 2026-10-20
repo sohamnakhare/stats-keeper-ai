@@ -75,9 +75,34 @@ def ytdlp_argv() -> list[str]:
     return [sys.executable, "-m", "yt_dlp"]
 
 
-def youtube_stream_command(url: str) -> list[str]:
-    """yt-dlp args that write a capped video stream to stdout."""
-    return [
+def youtube_download_section(
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
+) -> str | None:
+    """yt-dlp time range, or None when the whole video should stream.
+
+    ``end_sec`` is the game-end cutoff on the full video clock. A range that
+    ends at or before the start is omitted so the caller can skip the download.
+    """
+    start = max(0.0, start_sec)
+    if end_sec is not None and end_sec > start:
+        return f"*{start:g}-{end_sec:g}"
+    if start > 0 and end_sec is None:
+        return f"*{start:g}-inf"
+    return None
+
+
+def youtube_stream_command(
+    url: str,
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
+) -> list[str]:
+    """yt-dlp args that write a capped video stream to stdout.
+
+    ``start_sec`` skips the opening of the video. ``end_sec`` stops the
+    stream at the game end so the rest of the file is not downloaded.
+    """
+    command = [
         *ytdlp_argv(),
         "-f",
         youtube_format(),
@@ -88,8 +113,12 @@ def youtube_stream_command(url: str) -> list[str]:
         "--no-playlist",
         "--quiet",
         "--no-warnings",
-        url,
     ]
+    section = youtube_download_section(start_sec, end_sec)
+    if section is not None:
+        command.extend(["--download-sections", section])
+    command.append(url)
+    return command
 
 
 def aria2c_command(url: str, dest: Path) -> list[str]:
